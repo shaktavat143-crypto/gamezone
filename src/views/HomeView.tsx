@@ -250,30 +250,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         )}
 
-        {/* Previous Party Quick Reconnect Banner if stored */}
-        {storedPartyCode && (
-          <div className="mb-6 mx-auto max-w-lg w-full rounded-2xl bg-amber-950/30 border border-amber-500/40 p-3.5 sm:p-4 text-xs flex items-center justify-between gap-3 shadow-lg">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300">
-                <Zap className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="font-bold text-amber-200">Rejoin Previous Session</p>
-                <p className="text-[11px] text-zinc-400">Party Code: <span className="font-mono font-bold text-amber-400">{storedPartyCode}</span> {storedPlayerName ? `(${storedPlayerName})` : ''}</p>
-              </div>
-            </div>
-            <button
-              id="quick-rejoin-stored-btn"
-              onClick={handleQuickRejoinStored}
-              disabled={isSubmitting}
-              className="flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 px-3.5 py-2 text-xs font-bold text-zinc-950 transition cursor-pointer shadow-md shadow-amber-500/20 disabled:opacity-50"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>{isSubmitting ? 'Rejoining...' : 'Rejoin Now'}</span>
-            </button>
-          </div>
-        )}
-
         <div className="text-center max-w-3xl mx-auto space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full bg-violet-950/60 px-4 py-1.5 text-xs font-bold text-violet-300 border border-violet-800/40">
             <Sparkles className="h-3.5 w-3.5 text-violet-400" />

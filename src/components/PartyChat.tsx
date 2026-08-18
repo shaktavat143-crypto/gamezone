@@ -21,11 +21,11 @@ export const PartyChat: React.FC<PartyChatProps> = ({
   onClose
 }) => {
   const [inputText, setInputText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isOpen && chatScrollContainerRef.current) {
+      chatScrollContainerRef.current.scrollTop = chatScrollContainerRef.current.scrollHeight;
     }
   }, [messages, isOpen]);
 
@@ -83,7 +83,7 @@ export const PartyChat: React.FC<PartyChatProps> = ({
         </div>
 
         {/* Message Stream */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div ref={chatScrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500">
               <Smile className="h-8 w-8 mb-2 opacity-50" />
@@ -146,7 +146,6 @@ export const PartyChat: React.FC<PartyChatProps> = ({
               );
             })
           )}
-          <div ref={messagesEndRef} />
         </div>
 
         {/* Quick Emoji Bar */}

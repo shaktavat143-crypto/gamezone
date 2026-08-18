@@ -90,17 +90,6 @@ export default function App() {
       soundService.playWinner();
     });
 
-    // Auto-attempt reconnection if stored session exists
-    const storedCode = localStorage.getItem('gamezone_party_code');
-    const storedToken = localStorage.getItem('gamezone_session_token');
-    const storedPlayerId = localStorage.getItem('gamezone_player_id');
-
-    if (storedCode && storedToken && storedPlayerId) {
-      setTimeout(() => {
-        socketService.reconnect(storedCode, storedToken, storedPlayerId);
-      }, 300);
-    }
-
     return () => {
       unsubParty();
       unsubStatus();

@@ -12,6 +12,7 @@ import {
   Shuffle
 } from 'lucide-react';
 import { ClientPartyView, SolahChitsRoundData, SolahChitsCard } from '../../types.js';
+import { socketService } from '../../services/socket.js';
 import { soundService } from '../../services/sound.js';
 
 interface SolahChitsProps {
@@ -110,13 +111,35 @@ export const SolahChits: React.FC<SolahChitsProps> = ({ party, onAction, isHost 
             <Trophy className="w-8 h-8" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-            Round {party.currentRound} Complete!
+            Round {party.currentRound} of {party.totalRounds} Complete!
           </h2>
-          <p className="text-amber-300 font-medium">
+          <p className="text-amber-300 font-medium mb-4">
             {winnerSlam
               ? `${winnerSlam.playerName} was the first to collect 4 chits and call BINGO! 🏆`
               : 'Round completed!'}
           </p>
+
+          {/* Host Next Round Control */}
+          <div className="flex items-center justify-center pt-1">
+            {isHost ? (
+              <button
+                id="solah-chits-top-next-round-btn"
+                onClick={() => {
+                  soundService.playClick();
+                  socketService.nextRound();
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-6 py-3 text-sm font-black text-zinc-950 shadow-lg shadow-amber-500/30 transition-all cursor-pointer hover:scale-103 active:scale-97"
+              >
+                <span>{party.currentRound < party.totalRounds ? 'PROCEED TO NEXT ROUND ➔' : 'SEE FINAL STANDINGS 🏆'}</span>
+                <ArrowRight className="w-4 h-4 stroke-[3]" />
+              </button>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-black/40 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                <Clock className="w-3.5 h-3.5 animate-spin" />
+                <span>Waiting for Host to start {party.currentRound < party.totalRounds ? `Round ${party.currentRound + 1}` : 'final results'}...</span>
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {/* Reaction Podium Leaderboard */}
@@ -229,6 +252,28 @@ export const SolahChits: React.FC<SolahChitsProps> = ({ party, onAction, isHost 
             </div>
           </div>
         )}
+
+        {/* Bottom Action Footer for Host & Players */}
+        <div className="flex items-center justify-center p-4 bg-slate-900/80 border border-slate-800 rounded-2xl">
+          {isHost ? (
+            <button
+              id="solah-chits-bottom-next-round-btn"
+              onClick={() => {
+                soundService.playClick();
+                socketService.nextRound();
+              }}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-8 py-3.5 text-sm font-black text-zinc-950 shadow-lg shadow-amber-500/30 transition-all cursor-pointer hover:scale-102 active:scale-98"
+            >
+              <span>{party.currentRound < party.totalRounds ? `START ROUND ${party.currentRound + 1} ➔` : 'SEE FINAL TOURNAMENT STANDINGS 🏆'}</span>
+              <ArrowRight className="w-4 h-4 stroke-[3]" />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold">
+              <Clock className="w-4 h-4 text-amber-400 animate-spin" />
+              <span>Waiting for Party Host to proceed...</span>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
