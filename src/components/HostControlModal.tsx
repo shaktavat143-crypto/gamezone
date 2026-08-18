@@ -1,5 +1,5 @@
-import React from 'react';
-import { Settings, Lock, Unlock, Users, RotateCcw, AlertTriangle, X, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, Lock, Unlock, Users, RotateCcw, AlertTriangle, X, Plus, Minus, Check } from 'lucide-react';
 import { GameSettings, Player } from '../types.js';
 import { socketService } from '../services/socket.js';
 import { soundService } from '../services/sound.js';
@@ -23,6 +23,9 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
   myPlayerId,
   gameStatus
 }) => {
+  const [customRoundsInput, setCustomRoundsInput] = useState<string>(String(gameSettings.rounds || 3));
+  const [customTimeInput, setCustomTimeInput] = useState<string>(String(gameSettings.timeLimit || 45));
+
   if (!isOpen) return null;
 
   const handleToggleLock = () => {
@@ -31,18 +34,35 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
   };
 
   const handleUpdateRounds = (rounds: number) => {
-    socketService.updateGameSettings({ rounds });
+    const valid = Math.max(1, Math.min(100, rounds));
+    setCustomRoundsInput(String(valid));
+    socketService.updateGameSettings({ rounds: valid });
     soundService.playClick();
   };
 
   const handleUpdateTimeLimit = (timeLimit: number) => {
-    socketService.updateGameSettings({ timeLimit });
+    const valid = Math.max(5, Math.min(600, timeLimit));
+    setCustomTimeInput(String(valid));
+    socketService.updateGameSettings({ timeLimit: valid });
     soundService.playClick();
   };
 
-  const handleUpdateDifficulty = (difficulty: 'easy' | 'normal' | 'hard') => {
-    socketService.updateGameSettings({ difficulty });
-    soundService.playClick();
+  const handleRoundsBlur = () => {
+    const val = parseInt(customRoundsInput, 10);
+    if (!isNaN(val) && val >= 1) {
+      handleUpdateRounds(val);
+    } else {
+      setCustomRoundsInput(String(gameSettings.rounds || 3));
+    }
+  };
+
+  const handleTimeBlur = () => {
+    const val = parseInt(customTimeInput, 10);
+    if (!isNaN(val) && val >= 5) {
+      handleUpdateTimeLimit(val);
+    } else {
+      setCustomTimeInput(String(gameSettings.timeLimit || 45));
+    }
   };
 
   const handleReturnLobby = () => {
@@ -76,11 +96,11 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
           </div>
           <div>
             <h2 className="text-base font-bold text-white">Host Controls</h2>
-            <p className="text-xs text-zinc-400">Manage room permissions, players & game settings</p>
+            <p className="text-xs text-zinc-400">Manage room permissions, customizable rounds & time limits</p>
           </div>
         </div>
 
-        <div className="space-y-5 max-h-[420px] overflow-y-auto pr-1">
+        <div className="space-y-5 max-h-[460px] overflow-y-auto pr-1">
           {/* Party Lock Status */}
           <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -109,26 +129,52 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
           </div>
 
           {/* Game Settings */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 space-y-3.5">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 space-y-4">
             <div className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
-              Default Game Settings
+              Custom Game Timing & Rounds
             </div>
 
-            {/* Rounds */}
+            {/* Custom Rounds */}
             <div>
               <div className="flex justify-between text-xs mb-1.5">
                 <span className="text-zinc-400">Number of Rounds:</span>
-                <span className="font-bold text-white font-mono">{gameSettings.rounds} Rounds</span>
+                <span className="font-bold text-amber-400 font-mono">{gameSettings.rounds} Rounds</span>
               </div>
-              <div className="grid grid-cols-5 gap-1.5">
-                {[1, 2, 3, 5, 8].map((num) => (
+              
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  onClick={() => handleUpdateRounds((gameSettings.rounds || 3) - 1)}
+                  className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={customRoundsInput}
+                  onChange={(e) => setCustomRoundsInput(e.target.value)}
+                  onBlur={handleRoundsBlur}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRoundsBlur()}
+                  className="flex-1 h-9 rounded-lg bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-amber-400 focus:outline-none"
+                />
+                <button
+                  onClick={() => handleUpdateRounds((gameSettings.rounds || 3) + 1)}
+                  className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {[1, 2, 3, 5, 8, 10, 15, 20].map((num) => (
                   <button
                     key={num}
                     onClick={() => handleUpdateRounds(num)}
-                    className={`rounded-lg py-1 text-xs font-bold transition cursor-pointer ${
+                    className={`rounded-lg py-1 px-2.5 text-xs font-bold transition cursor-pointer ${
                       gameSettings.rounds === num
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'bg-zinc-800/90 text-zinc-400 hover:text-white'
                     }`}
                   >
                     {num}
@@ -137,21 +183,48 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
               </div>
             </div>
 
-            {/* Time Limit */}
+            {/* Custom Time Limit */}
             <div>
               <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-zinc-400">Round Time Limit:</span>
-                <span className="font-bold text-white font-mono">{gameSettings.timeLimit}s</span>
+                <span className="text-zinc-400">Round Time Limit (Seconds):</span>
+                <span className="font-bold text-amber-400 font-mono">{gameSettings.timeLimit}s</span>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[20, 30, 45, 60].map((sec) => (
+
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  onClick={() => handleUpdateTimeLimit((gameSettings.timeLimit || 45) - 5)}
+                  className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <input
+                  type="number"
+                  min={5}
+                  max={600}
+                  step={5}
+                  value={customTimeInput}
+                  onChange={(e) => setCustomTimeInput(e.target.value)}
+                  onBlur={handleTimeBlur}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTimeBlur()}
+                  className="flex-1 h-9 rounded-lg bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-amber-400 focus:outline-none"
+                />
+                <button
+                  onClick={() => handleUpdateTimeLimit((gameSettings.timeLimit || 45) + 5)}
+                  className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {[10, 15, 20, 30, 45, 60, 90, 120, 180].map((sec) => (
                   <button
                     key={sec}
                     onClick={() => handleUpdateTimeLimit(sec)}
-                    className={`rounded-lg py-1 text-xs font-bold transition cursor-pointer ${
+                    className={`rounded-lg py-1 px-2.5 text-xs font-bold transition cursor-pointer ${
                       gameSettings.timeLimit === sec
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'bg-zinc-800/90 text-zinc-400 hover:text-white'
                     }`}
                   >
                     {sec}s
@@ -159,81 +232,69 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
                 ))}
               </div>
             </div>
-
-            {/* Difficulty */}
-            <div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-zinc-400">Game Difficulty / Range:</span>
-                <span className="font-bold text-white capitalize">{gameSettings.difficulty}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(['easy', 'normal', 'hard'] as const).map((diff) => (
-                  <button
-                    key={diff}
-                    onClick={() => handleUpdateDifficulty(diff)}
-                    className={`rounded-lg py-1 text-xs font-bold capitalize transition cursor-pointer ${
-                      gameSettings.difficulty === diff
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    {diff}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
-          {/* Manage Players / Kick */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5">
-            <div className="text-xs font-bold text-zinc-200 uppercase tracking-wider mb-2">
-              Manage Players ({Object.keys(players).length})
+          {/* Active Game Abort */}
+          {gameStatus === 'in_game' && (
+            <div className="rounded-xl border border-rose-900/50 bg-rose-950/20 p-3.5 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4" /> Active Game in Progress
+                </div>
+                <div className="text-[11px] text-zinc-400 mt-0.5">
+                  Stop the ongoing match and bring everyone back to party lobby.
+                </div>
+              </div>
+              <button
+                onClick={handleReturnLobby}
+                className="rounded-xl bg-rose-700 hover:bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer shrink-0 ml-2"
+              >
+                End Game
+              </button>
             </div>
-            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+          )}
+
+          {/* Player Management List */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-bold text-zinc-200">
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-zinc-400" />
+                Party Members ({Object.keys(players).length})
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
               {(Object.values(players) as Player[]).map((p) => {
-                if (p.id === myPlayerId) return null;
+                const isMe = p.id === myPlayerId;
                 return (
-                  <div key={p.id} className="flex items-center justify-between rounded-lg bg-zinc-950 px-2.5 py-1.5 border border-zinc-800/80">
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between rounded-lg bg-zinc-950/60 p-2 text-xs border border-zinc-800/60"
+                  >
                     <div className="flex items-center gap-2">
-                      <span>{p.avatar}</span>
-                      <span className="text-xs font-medium text-white">{p.name}</span>
+                      <span className="text-base">{p.avatar}</span>
+                      <span className="font-semibold text-white truncate max-w-[120px]">{p.name}</span>
+                      {p.isHost && (
+                        <span className="rounded bg-amber-500/20 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
+                          HOST
+                        </span>
+                      )}
+                      {isMe && <span className="text-[10px] text-zinc-500">(You)</span>}
                     </div>
-                    <button
-                      onClick={() => handleKick(p.id, p.name)}
-                      className="rounded bg-rose-950/40 px-2 py-1 text-[10px] font-semibold text-rose-400 hover:bg-rose-900/50 transition cursor-pointer"
-                    >
-                      Kick
-                    </button>
+
+                    {!isMe && (
+                      <button
+                        onClick={() => handleKick(p.id, p.name)}
+                        className="rounded px-2 py-1 text-[10px] font-bold text-rose-400 hover:bg-rose-950/80 transition cursor-pointer"
+                      >
+                        Kick
+                      </button>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
-
-          {/* Return Everyone to Lobby Action */}
-          {gameStatus !== 'lobby' && (
-            <div className="rounded-xl border border-rose-900/30 bg-rose-950/20 p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-rose-300">
-                <RotateCcw className="h-4 w-4 shrink-0" />
-                <span className="text-xs font-semibold">Cancel Game & Return to Lobby</span>
-              </div>
-              <button
-                onClick={handleReturnLobby}
-                className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 transition cursor-pointer shadow-sm"
-              >
-                Return All
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-5 pt-4 border-t border-zinc-800 flex justify-end">
-          <button
-            onClick={onClose}
-            className="rounded-xl bg-zinc-800 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-700 transition cursor-pointer"
-          >
-            Done
-          </button>
         </div>
       </div>
     </div>

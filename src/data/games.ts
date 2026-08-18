@@ -46,15 +46,15 @@ export const AVAILABLE_GAMES: GameMetadata[] = [
     description: 'Sequence memory, position memory, reverse recall, what’s missing, speed flash, and chaotic rounds with speed bonuses!'
   },
   {
-    id: 'number_guess',
-    title: 'Number Guess',
-    tagline: 'Real-time guessing with live Higher/Lower temperature feed.',
+    id: 'solah_chits',
+    title: 'Solah Chits',
+    tagline: 'Pass royal chits in a circle, complete 4 matching cards & slam BINGO!',
     minPlayers: 2,
-    maxPlayers: 20,
-    estimatedTime: '3–6 min',
-    icon: '🎯',
+    maxPlayers: 12,
+    estimatedTime: '4–8 min',
+    icon: '🃏',
     accentColor: '#F59E0B',
-    description: 'The server secretly selects a target number. Submit guesses with instant higher/lower feedback to narrow the range and strike gold!'
+    description: 'Each player receives 4 chits. Pass chits in a circle to collect 4 of the same type (e.g. 4x Raja, 4x Rani). The first player to finish slams BINGO, triggering a high-speed reaction race for all players!'
   },
   {
     id: 'who_said_it',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Play, Clock, Sparkles, Sliders, ShieldCheck, Flame, Zap, HelpCircle } from 'lucide-react';
+import { X, Play, Clock, Sparkles, Sliders, ShieldCheck, Flame, Zap, HelpCircle, Plus, Minus } from 'lucide-react';
 import { GameType, GameSettings, ClientPartyView, Player } from '../types.js';
 import { AVAILABLE_GAMES } from '../data/games.js';
 import { socketService } from '../services/socket.js';
@@ -27,30 +27,41 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>(gameSettings?.difficulty || 'normal');
   const [customParam, setCustomParam] = useState<any>(gameSettings?.customParam ?? 4);
 
+  const [roundsInput, setRoundsInput] = useState<string>(String(gameSettings?.rounds || 3));
+  const [timeLimitInput, setTimeLimitInput] = useState<string>(String(gameSettings?.timeLimit || 45));
+
   // Sync with prop when opened or gameType changes
   useEffect(() => {
     if (isOpen) {
-      if (gameType === 'number_guess') {
-        setRounds(3);
-        setTimeLimit(60);
-        setDifficulty('normal');
-      } else if (gameType === 'word_battle') {
-        setRounds(3);
-        setTimeLimit(45);
+      let defaultRounds = 3;
+      let defaultTime = 45;
+
+      if (gameType === 'word_battle') {
+        defaultRounds = 3;
+        defaultTime = 45;
         setCustomParam(4);
       } else if (gameType === 'secret_battle') {
-        setRounds(3);
-        setTimeLimit(45);
+        defaultRounds = 3;
+        defaultTime = 45;
       } else if (gameType === 'most_likely_to') {
-        setRounds(5);
-        setTimeLimit(25);
+        defaultRounds = 5;
+        defaultTime = 25;
       } else if (gameType === 'memory_battle') {
-        setRounds(4);
-        setTimeLimit(15);
+        defaultRounds = 4;
+        defaultTime = 25;
+      } else if (gameType === 'solah_chits') {
+        defaultRounds = 3;
+        defaultTime = 10; // pass wave duration
+        setCustomParam(8); // reaction slam window
       } else if (gameType === 'who_said_it') {
-        setRounds(3);
-        setTimeLimit(40);
+        defaultRounds = 3;
+        defaultTime = 40;
       }
+
+      setRounds(defaultRounds);
+      setRoundsInput(String(defaultRounds));
+      setTimeLimit(defaultTime);
+      setTimeLimitInput(String(defaultTime));
     }
   }, [isOpen, gameType]);
 
@@ -58,6 +69,38 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
 
   const onlinePlayersCount = (Object.values(players) as Player[]).filter((p) => p.isOnline).length;
   const canStart = onlinePlayersCount >= meta.minPlayers;
+
+  const updateRounds = (val: number) => {
+    const valid = Math.max(1, Math.min(100, val));
+    setRounds(valid);
+    setRoundsInput(String(valid));
+    soundService.playClick();
+  };
+
+  const updateTimeLimit = (val: number) => {
+    const valid = Math.max(5, Math.min(600, val));
+    setTimeLimit(valid);
+    setTimeLimitInput(String(valid));
+    soundService.playClick();
+  };
+
+  const handleRoundsBlur = () => {
+    const parsed = parseInt(roundsInput, 10);
+    if (!isNaN(parsed) && parsed >= 1) {
+      updateRounds(parsed);
+    } else {
+      setRoundsInput(String(rounds));
+    }
+  };
+
+  const handleTimeBlur = () => {
+    const parsed = parseInt(timeLimitInput, 10);
+    if (!isNaN(parsed) && parsed >= 5) {
+      updateTimeLimit(parsed);
+    } else {
+      setTimeLimitInput(String(timeLimit));
+    }
+  };
 
   const handleLaunch = () => {
     if (!isHost || !canStart) return;
@@ -121,28 +164,53 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
         </div>
 
         {/* Game-Specific Settings Form */}
-        <div className="space-y-4 rounded-2xl bg-zinc-900/60 p-4 border border-zinc-800/80 mb-6">
+        <div className="space-y-4 rounded-2xl bg-zinc-900/60 p-4 border border-zinc-800/80 mb-6 max-h-[380px] overflow-y-auto pr-1">
           <div className="flex items-center gap-2 text-xs font-bold text-violet-400 uppercase tracking-wider mb-1">
             <Sliders className="h-3.5 w-3.5" />
-            <span>Configure Game Rules</span>
+            <span>Customize Rounds & Time Limits</span>
           </div>
 
-          {/* 1. Rounds Configuration */}
+          {/* 1. Rounds Configuration (Full Freedom) */}
           <div>
             <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
               <span>Number of Rounds</span>
-              <span className="text-violet-400 font-bold">{rounds} {rounds === 1 ? 'Round' : 'Rounds'}</span>
+              <span className="text-violet-400 font-bold font-mono">{rounds} {rounds === 1 ? 'Round' : 'Rounds'}</span>
             </div>
+
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => updateRounds(rounds - 1)}
+                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={roundsInput}
+                onChange={(e) => setRoundsInput(e.target.value)}
+                onBlur={handleRoundsBlur}
+                onKeyDown={(e) => e.key === 'Enter' && handleRoundsBlur()}
+                className="flex-1 h-9 rounded-lg bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-violet-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => updateRounds(rounds + 1)}
+                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+
             <div className="grid grid-cols-5 gap-1.5">
               {[1, 2, 3, 5, 8].map((num) => (
                 <button
                   key={num}
                   type="button"
-                  onClick={() => {
-                    setRounds(num);
-                    soundService.playClick();
-                  }}
-                  className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+                  onClick={() => updateRounds(num)}
+                  className={`rounded-xl py-1.5 text-xs font-bold transition cursor-pointer ${
                     rounds === num
                       ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30'
                       : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
@@ -154,156 +222,80 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Game-Specific Setting Options */}
+          {/* 2. Time Limit Configuration (Full Freedom) */}
+          <div>
+            <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
+              <span>{gameType === 'solah_chits' ? 'Pass Wave Timer' : 'Round Time Limit'}</span>
+              <span className="text-violet-400 font-bold font-mono">{timeLimit} Seconds</span>
+            </div>
+
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => updateTimeLimit(timeLimit - (gameType === 'solah_chits' ? 1 : 5))}
+                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <input
+                type="number"
+                min={5}
+                max={600}
+                step={gameType === 'solah_chits' ? 1 : 5}
+                value={timeLimitInput}
+                onChange={(e) => setTimeLimitInput(e.target.value)}
+                onBlur={handleTimeBlur}
+                onKeyDown={(e) => e.key === 'Enter' && handleTimeBlur()}
+                className="flex-1 h-9 rounded-lg bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-violet-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => updateTimeLimit(timeLimit + (gameType === 'solah_chits' ? 1 : 5))}
+                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {(gameType === 'solah_chits' ? [6, 8, 10, 12, 15, 20] : [15, 20, 30, 45, 60, 90, 120]).map((sec) => (
+                <button
+                  key={sec}
+                  type="button"
+                  onClick={() => updateTimeLimit(sec)}
+                  className={`rounded-lg py-1 px-2.5 text-xs font-bold transition cursor-pointer ${
+                    timeLimit === sec
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {sec}s
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Game-Specific Extra Settings */}
           {gameType === 'word_battle' && (
-            <>
-              <div>
-                <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-                  <span>Round Duration</span>
-                  <span className="text-violet-400 font-bold">{timeLimit} Seconds</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { sec: 30, label: '30s (Blitz)' },
-                    { sec: 45, label: '45s (Standard)' },
-                    { sec: 60, label: '60s (Casual)' }
-                  ].map((opt) => (
-                    <button
-                      key={opt.sec}
-                      type="button"
-                      onClick={() => {
-                        setTimeLimit(opt.sec);
-                        soundService.playClick();
-                      }}
-                      className={`rounded-xl py-2 px-1 text-center text-xs font-bold transition cursor-pointer ${
-                        timeLimit === opt.sec
-                          ? 'bg-violet-600 text-white shadow-md'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-                  <span>Categories per Round</span>
-                  <span className="text-violet-400 font-bold">{customParam} Categories</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { count: 4, label: '4 Categories (Classic)' },
-                    { count: 6, label: '6 Categories (Expert)' }
-                  ].map((opt) => (
-                    <button
-                      key={opt.count}
-                      type="button"
-                      onClick={() => {
-                        setCustomParam(opt.count);
-                        soundService.playClick();
-                      }}
-                      className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
-                        customParam === opt.count
-                          ? 'bg-violet-600 text-white shadow-md'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {gameType === 'number_guess' && (
-            <>
-              <div>
-                <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-                  <span>Target Number Range & Difficulty</span>
-                  <span className="text-violet-400 font-bold capitalize">{difficulty}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { diff: 'easy' as const, label: '1 - 50', tag: 'Easy' },
-                    { diff: 'normal' as const, label: '1 - 100', tag: 'Standard' },
-                    { diff: 'hard' as const, label: '1 - 1000', tag: 'Extreme' }
-                  ].map((item) => (
-                    <button
-                      key={item.diff}
-                      type="button"
-                      onClick={() => {
-                        setDifficulty(item.diff);
-                        soundService.playClick();
-                      }}
-                      className={`rounded-xl py-2 px-2 text-center text-xs font-bold transition cursor-pointer ${
-                        difficulty === item.diff
-                          ? 'bg-violet-600 text-white shadow-md'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}
-                    >
-                      <div>{item.label}</div>
-                      <div className="text-[10px] font-normal opacity-75">{item.tag}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-                  <span>Round Time Limit</span>
-                  <span className="text-violet-400 font-bold">{timeLimit}s</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { sec: 45, label: '45s' },
-                    { sec: 60, label: '60s' },
-                    { sec: 90, label: '90s' }
-                  ].map((opt) => (
-                    <button
-                      key={opt.sec}
-                      type="button"
-                      onClick={() => {
-                        setTimeLimit(opt.sec);
-                        soundService.playClick();
-                      }}
-                      className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
-                        timeLimit === opt.sec
-                          ? 'bg-violet-600 text-white shadow-md'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {gameType === 'secret_battle' && (
             <div>
               <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-                <span>Clue Writing Time</span>
-                <span className="text-violet-400 font-bold">{timeLimit}s</span>
+                <span>Categories per Round</span>
+                <span className="text-violet-400 font-bold">{customParam} Categories</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {[
-                  { sec: 30, label: '30s (Quick)' },
-                  { sec: 45, label: '45s (Balanced)' },
-                  { sec: 60, label: '60s (Thoughtful)' }
+                  { count: 4, label: '4 Categories (Classic)' },
+                  { count: 6, label: '6 Categories (Expert)' }
                 ].map((opt) => (
                   <button
-                    key={opt.sec}
+                    key={opt.count}
                     type="button"
                     onClick={() => {
-                      setTimeLimit(opt.sec);
+                      setCustomParam(opt.count);
                       soundService.playClick();
                     }}
                     className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
-                      timeLimit === opt.sec
+                      customParam === opt.count
                         ? 'bg-violet-600 text-white shadow-md'
                         : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                     }`}
@@ -315,28 +307,28 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
             </div>
           )}
 
-          {gameType === 'most_likely_to' && (
+          {gameType === 'solah_chits' && (
             <div>
               <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-                <span>Voting Speed</span>
-                <span className="text-violet-400 font-bold">{timeLimit}s per Prompt</span>
+                <span>Reaction Slam Window</span>
+                <span className="text-amber-400 font-bold font-mono">{customParam}s</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { sec: 15, label: '15s (Speedy)' },
-                  { sec: 25, label: '25s (Standard)' },
-                  { sec: 40, label: '40s (Party)' }
+                  { sec: 5, label: '5s (Insane Flash ⚡)' },
+                  { sec: 8, label: '8s (Standard 🎯)' },
+                  { sec: 12, label: '12s (Relaxed ☕)' }
                 ].map((opt) => (
                   <button
                     key={opt.sec}
                     type="button"
                     onClick={() => {
-                      setTimeLimit(opt.sec);
+                      setCustomParam(opt.sec);
                       soundService.playClick();
                     }}
-                    className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
-                      timeLimit === opt.sec
-                        ? 'bg-violet-600 text-white shadow-md'
+                    className={`rounded-xl py-2 px-1 text-center text-xs font-bold transition cursor-pointer ${
+                      customParam === opt.sec
+                        ? 'bg-amber-600 text-white shadow-md'
                         : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
                     }`}
                   >
@@ -373,38 +365,6 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
                   >
                     <div>{item.label}</div>
                     <div className="text-[10px] font-normal opacity-75">{item.desc}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {gameType === 'who_said_it' && (
-            <div>
-              <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-                <span>Secret Prompt Writing Time</span>
-                <span className="text-violet-400 font-bold">{timeLimit}s</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { sec: 30, label: '30s (Fast)' },
-                  { sec: 45, label: '45s (Standard)' },
-                  { sec: 60, label: '60s (Creative)' }
-                ].map((opt) => (
-                  <button
-                    key={opt.sec}
-                    type="button"
-                    onClick={() => {
-                      setTimeLimit(opt.sec);
-                      soundService.playClick();
-                    }}
-                    className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
-                      timeLimit === opt.sec
-                        ? 'bg-violet-600 text-white shadow-md'
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                    }`}
-                  >
-                    {opt.label}
                   </button>
                 ))}
               </div>

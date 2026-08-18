@@ -7,7 +7,7 @@ import { WordBattle } from './games/WordBattle.js';
 import { SecretBattle } from './games/SecretBattle.js';
 import { MostLikelyTo } from './games/MostLikelyTo.js';
 import { MemoryBattle } from './games/MemoryBattle.js';
-import { NumberGuess } from './games/NumberGuess.js';
+import { SolahChits } from './games/SolahChits.js';
 import { WhoSaidIt } from './games/WhoSaidIt.js';
 
 interface GameContainerProps {
@@ -34,8 +34,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
         return { title: 'Most Likely To', icon: '🗳️', color: '#3B82F6' };
       case 'memory_battle':
         return { title: 'Memory Battle', icon: '🧠', color: '#10B981' };
-      case 'number_guess':
-        return { title: 'Number Guess', icon: '🎯', color: '#F59E0B' };
+      case 'solah_chits':
+        return { title: 'Solah Chits', icon: '🃏', color: '#F59E0B' };
       case 'who_said_it':
         return { title: 'Who Said It?', icon: '🎭', color: '#06B6D4' };
       default:
@@ -49,6 +49,10 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
   const playerList: Player[] = Object.values(party.players || {});
   const currentLeader = playerList.sort((a, b) => b.gameScore - a.gameScore)[0];
 
+  const handleGameAction = (action: string, data?: any) => {
+    socketService.sendGameAction(action, data);
+  };
+
   const renderGameContent = () => {
     switch (currentGame) {
       case 'word_battle':
@@ -59,8 +63,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
         return <MostLikelyTo party={party} />;
       case 'memory_battle':
         return <MemoryBattle party={party} />;
-      case 'number_guess':
-        return <NumberGuess party={party} />;
+      case 'solah_chits':
+        return <SolahChits party={party} onAction={handleGameAction} isHost={isHost} />;
       case 'who_said_it':
         return <WhoSaidIt party={party} />;
       default:

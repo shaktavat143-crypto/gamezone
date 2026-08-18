@@ -118,6 +118,7 @@ export default function App() {
     setWelcomeBackData(null);
     localStorage.removeItem('gamezone_party_code');
     localStorage.removeItem('gamezone_session_token');
+    localStorage.removeItem('gamezone_player_id');
   };
 
   const handleRetryConnection = () => {

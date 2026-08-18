@@ -3,7 +3,7 @@ export type GameType =
   | 'secret_battle'
   | 'most_likely_to'
   | 'memory_battle'
-  | 'number_guess'
+  | 'solah_chits'
   | 'who_said_it';
 
 export type PartyStatus = 'lobby' | 'in_game' | 'round_reveal' | 'game_results';
@@ -135,7 +135,8 @@ export interface MemoryChallenge {
 
 export interface MemoryBattleRoundData {
   challenge: MemoryChallenge;
-  phase: 'memorize' | 'answer' | 'reveal';
+  phase: 'ready' | 'memorize' | 'answer' | 'reveal';
+  readyPlayers: Record<string, boolean>; // playerId -> true
   submissions: Record<string, {
     answer: any;
     timeTakenMs: number;
@@ -144,23 +145,46 @@ export interface MemoryBattleRoundData {
   }>;
 }
 
-// 5. NUMBER GUESS
-export interface NumberGuessRoundData {
-  min: number;
-  max: number;
-  targetNumber: number;
-  currentRange: [number, number];
-  guesses: Array<{
-    id: string;
-    playerId: string;
-    playerName: string;
-    playerColor: string;
-    guess: number;
-    result: 'HIGHER' | 'LOWER' | 'CORRECT';
-    timestamp: number;
+// 5. SOLAH CHITS
+export interface SolahChitsCard {
+  id: string; // unique card instance ID e.g. "raja_1"
+  typeId: string; // card archetype ID e.g. "raja"
+  name: string; // e.g. "Raja"
+  hindiName: string; // e.g. "राजा (King)"
+  icon: string; // e.g. "👑"
+  color: string; // e.g. "#F59E0B"
+}
+
+export interface SolahChitsReactionSlam {
+  playerId: string;
+  playerName: string;
+  playerAvatar: string;
+  playerColor: string;
+  timestamp: number;
+  reactionMs: number;
+  rank: number;
+  points: number;
+}
+
+export interface SolahChitsRoundData {
+  playerOrder: string[]; // Circular order of player IDs [p1, p2, ..., pn]
+  cardTypes: Array<{
+    typeId: string;
+    name: string;
+    hindiName: string;
+    icon: string;
+    color: string;
   }>;
-  winnerPlayerId?: string;
-  roundWinnerPoints?: Record<string, number>;
+  hands: Record<string, SolahChitsCard[]>; // playerId -> 4 cards
+  pendingPasses: Record<string, string>; // playerId -> cardId selected to pass
+  passedInThisRound: Record<string, boolean>; // playerId -> true
+  passCount: number;
+  phase: 'passing' | 'bingo_slam' | 'reveal';
+  bingoWinnerId?: string;
+  bingoWinnerCardTypeId?: string;
+  bingoTriggeredAt?: number;
+  reactionSlams: SolahChitsReactionSlam[];
+  roundScores?: Record<string, { points: number; rank: number; reason: string }>;
 }
 
 // 6. WHO SAID IT?
@@ -180,7 +204,7 @@ export type AnyGameRoundData =
   | SecretBattleRoundData
   | MostLikelyToRoundData
   | MemoryBattleRoundData
-  | NumberGuessRoundData
+  | SolahChitsRoundData
   | WhoSaidItRoundData;
 
 export interface GameResultItem {

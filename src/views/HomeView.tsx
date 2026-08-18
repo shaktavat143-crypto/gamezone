@@ -25,6 +25,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [selectedAvatar, setSelectedAvatar] = useState(DEFAULT_AVATARS[0]);
   const [isCustomAvatarSelected, setIsCustomAvatarSelected] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localModalError, setLocalModalError] = useState<string | null>(null);
 
   const storedPartyCode = localStorage.getItem('gamezone_party_code');
   const storedPlayerName = localStorage.getItem('gamezone_player_name');
@@ -45,6 +46,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const handleNameChange = (val: string) => {
     setPlayerName(val);
+    setLocalModalError(null);
     if (!isCustomAvatarSelected && val.trim()) {
       setSelectedAvatar(generateAvatarFromUsername(val));
     }
@@ -63,72 +65,135 @@ export const HomeView: React.FC<HomeViewProps> = ({
     soundService.playClick();
   };
 
-  const handleCreateParty = (e: React.FormEvent) => {
+  const handleOpenModal = (mode: 'create' | 'join' | 'rejoin') => {
+    soundService.playClick();
+    setLocalModalError(null);
+    onClearError();
+    setModalMode(mode);
+  };
+
+  const handleCreateParty = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanName = playerName.trim() || 'Player';
+    const cleanParty = partyName.trim() || `${cleanName}'s Party`;
+
+    setIsSubmitting(true);
+    setLocalModalError(null);
+    onClearError();
+    soundService.playClick();
+
+    console.log('[HomeView.handleCreateParty] 🚀 User triggered party creation:', {
+      playerName: cleanName,
+      partyName: cleanParty,
+      avatar: selectedAvatar
+    });
+
+    try {
+      await socketService.createParty(cleanName, cleanParty, selectedAvatar);
+      console.log('[HomeView.handleCreateParty] ✅ createParty call succeeded');
+    } catch (err: any) {
+      console.error('[HomeView.handleCreateParty] ❌ Caught error during party creation:', err);
+      setLocalModalError(err.message || 'Failed to create party. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleJoinParty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = partyCode.trim().toUpperCase();
+    if (!cleanCode) {
+      setLocalModalError('Please enter the 6-letter room code');
+      return;
+    }
     const cleanName = playerName.trim() || 'Player';
 
     setIsSubmitting(true);
+    setLocalModalError(null);
+    onClearError();
     soundService.playClick();
-    socketService.connect();
-    socketService.createParty(cleanName, partyName.trim() || `${cleanName}'s Party`, selectedAvatar);
 
-    // Timeout safety
-    setTimeout(() => {
+    console.log('[HomeView.handleJoinParty] 🚀 User triggered party join:', {
+      partyCode: cleanCode,
+      playerName: cleanName,
+      avatar: selectedAvatar
+    });
+
+    try {
+      await socketService.joinParty(cleanCode, cleanName, selectedAvatar);
+      console.log('[HomeView.handleJoinParty] ✅ joinParty call succeeded');
+    } catch (err: any) {
+      console.error('[HomeView.handleJoinParty] ❌ Caught error during party join:', err);
+      setLocalModalError(err.message || 'Failed to join party. Please check the code.');
+    } finally {
       setIsSubmitting(false);
-    }, 6000);
+    }
   };
 
-  const handleJoinParty = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!partyCode.trim()) return;
-    const cleanName = playerName.trim() || 'Player';
-
-    setIsSubmitting(true);
-    soundService.playClick();
-    socketService.connect();
-    socketService.joinParty(partyCode.trim().toUpperCase(), cleanName, selectedAvatar);
-
-    // Timeout safety
-    setTimeout(() => {
-      setIsSubmitting(false);
-    }, 6000);
-  };
-
-  const handleRejoinParty = (e: React.FormEvent) => {
+  const handleRejoinParty = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = (rejoinCode || partyCode).trim().toUpperCase();
-    if (!code) return;
+    if (!code) {
+      setLocalModalError('Please enter a valid room code to rejoin');
+      return;
+    }
 
     setIsSubmitting(true);
+    setLocalModalError(null);
+    onClearError();
     soundService.playClick();
-    socketService.connect();
 
     const storedToken = localStorage.getItem('gamezone_session_token') || undefined;
     const storedPlayerId = localStorage.getItem('gamezone_player_id') || undefined;
     const cleanName = playerName.trim() || storedPlayerName || 'Player';
 
-    socketService.rejoinParty(code, cleanName, storedToken, storedPlayerId);
+    console.log('[HomeView.handleRejoinParty] 🚀 User triggered party rejoin:', {
+      code,
+      cleanName,
+      storedPlayerId,
+      hasToken: !!storedToken
+    });
 
-    // Timeout safety
-    setTimeout(() => {
+    try {
+      await socketService.rejoinParty(code, cleanName, storedToken, storedPlayerId);
+      console.log('[HomeView.handleRejoinParty] ✅ rejoinParty call succeeded');
+    } catch (err: any) {
+      console.error('[HomeView.handleRejoinParty] ❌ Caught error during party rejoin:', err);
+      setLocalModalError(err.message || 'Could not rejoin room. Please verify the code.');
+    } finally {
       setIsSubmitting(false);
-    }, 6000);
+    }
   };
 
-  const handleQuickRejoinStored = () => {
+  const handleQuickRejoinStored = async () => {
     if (!storedPartyCode) return;
     setIsSubmitting(true);
+    setLocalModalError(null);
+    onClearError();
     soundService.playClick();
-    socketService.connect();
 
     const storedToken = localStorage.getItem('gamezone_session_token') || undefined;
     const storedPlayerId = localStorage.getItem('gamezone_player_id') || undefined;
+    const cleanName = storedPlayerName || playerName || 'Player';
 
-    socketService.rejoinParty(storedPartyCode, storedPlayerName || playerName || 'Player', storedToken, storedPlayerId);
+    console.log('[HomeView.handleQuickRejoinStored] 🚀 Quick rejoining stored session:', {
+      storedPartyCode,
+      cleanName,
+      storedPlayerId
+    });
 
-    setTimeout(() => {
+    try {
+      await socketService.rejoinParty(storedPartyCode, cleanName, storedToken, storedPlayerId);
+    } catch (err: any) {
+      console.error('[HomeView.handleQuickRejoinStored] ❌ Quick rejoin error:', err);
+      // Remove dead stored code so banner disappears
+      localStorage.removeItem('gamezone_party_code');
+      localStorage.removeItem('gamezone_session_token');
+      localStorage.removeItem('gamezone_player_id');
+      onClearError();
+    } finally {
       setIsSubmitting(false);
-    }, 6000);
+    }
   };
 
   return (
@@ -148,10 +213,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               id="nav-rejoin-party-btn"
-              onClick={() => {
-                soundService.playClick();
-                setModalMode('rejoin');
-              }}
+              onClick={() => handleOpenModal('rejoin')}
               className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold text-amber-300 hover:text-amber-200 hover:bg-amber-950/30 border border-amber-500/30 transition cursor-pointer"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -159,20 +221,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </button>
             <button
               id="nav-join-party-btn"
-              onClick={() => {
-                soundService.playClick();
-                setModalMode('join');
-              }}
+              onClick={() => handleOpenModal('join')}
               className="rounded-xl px-3.5 py-2 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-900 transition cursor-pointer"
             >
               Join with Code
             </button>
             <button
               id="nav-create-party-btn"
-              onClick={() => {
-                soundService.playClick();
-                setModalMode('create');
-              }}
+              onClick={() => handleOpenModal('create')}
               className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-500 transition cursor-pointer shadow-md shadow-violet-600/20"
             >
               Create Party
@@ -184,10 +240,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* Main Hero Section */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-14 flex-1 flex flex-col justify-center">
         {/* Error message banner if any */}
-        {errorMessage && (
+        {(errorMessage || localModalError) && !modalMode && (
           <div className="mb-6 mx-auto max-w-lg w-full rounded-2xl bg-rose-950/90 border border-rose-500/60 p-4 text-xs font-semibold text-rose-200 shadow-xl flex items-center justify-between animate-in fade-in">
-            <span>{errorMessage}</span>
-            <button onClick={onClearError} className="text-rose-400 hover:text-white ml-3 font-bold cursor-pointer">✕</button>
+            <div className="flex items-center gap-2">
+              <span className="text-rose-400 font-bold">⚠️</span>
+              <span>{errorMessage || localModalError}</span>
+            </div>
+            <button onClick={() => { onClearError(); setLocalModalError(null); }} className="text-rose-400 hover:text-white ml-3 font-bold cursor-pointer">✕</button>
           </div>
         )}
 
@@ -237,10 +296,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
             <button
               id="hero-create-party-btn"
-              onClick={() => {
-                soundService.playClick();
-                setModalMode('create');
-              }}
+              onClick={() => handleOpenModal('create')}
               className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 px-7 py-4 text-sm font-black text-white shadow-xl shadow-violet-600/30 hover:scale-102 hover:from-violet-500 hover:to-indigo-500 transition-all cursor-pointer"
             >
               <Plus className="h-4 w-4 stroke-[3]" />
@@ -249,10 +305,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             <button
               id="hero-join-party-btn"
-              onClick={() => {
-                soundService.playClick();
-                setModalMode('join');
-              }}
+              onClick={() => handleOpenModal('join')}
               className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-zinc-900 border border-zinc-800 px-7 py-4 text-sm font-black text-zinc-200 hover:bg-zinc-800 hover:text-white hover:border-zinc-700 transition-all cursor-pointer"
             >
               <Users className="h-4 w-4" />
@@ -261,10 +314,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
             <button
               id="hero-rejoin-party-btn"
-              onClick={() => {
-                soundService.playClick();
-                setModalMode('rejoin');
-              }}
+              onClick={() => handleOpenModal('rejoin')}
               className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-amber-950/40 border border-amber-500/40 px-7 py-4 text-sm font-black text-amber-300 hover:bg-amber-950/70 hover:border-amber-400 transition-all cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" />
@@ -337,6 +387,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <p className="text-xs text-zinc-400">You will become the Party Host 👑</p>
               </div>
             </div>
+
+            {/* In-Modal Error Banner */}
+            {(localModalError || errorMessage) && (
+              <div className="mb-4 rounded-xl bg-rose-950/90 border border-rose-500/60 p-3 text-xs font-semibold text-rose-200 flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-rose-400 font-bold">⚠️</span>
+                  <span>{localModalError || errorMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setLocalModalError(null); onClearError(); }}
+                  className="text-rose-400 hover:text-white font-bold cursor-pointer ml-2"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleCreateParty} className="space-y-4">
               <div>
@@ -446,6 +513,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
 
+            {/* In-Modal Error Banner */}
+            {(localModalError || errorMessage) && (
+              <div className="mb-4 rounded-xl bg-rose-950/90 border border-rose-500/60 p-3 text-xs font-semibold text-rose-200 flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-rose-400 font-bold">⚠️</span>
+                  <span>{localModalError || errorMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setLocalModalError(null); onClearError(); }}
+                  className="text-rose-400 hover:text-white font-bold cursor-pointer ml-2"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleJoinParty} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1.5">
@@ -554,6 +638,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <p className="text-xs text-zinc-400">Restore your player slot and scores</p>
               </div>
             </div>
+
+            {/* In-Modal Error Banner */}
+            {(localModalError || errorMessage) && (
+              <div className="mb-4 rounded-xl bg-rose-950/90 border border-rose-500/60 p-3 text-xs font-semibold text-rose-200 flex items-center justify-between animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-rose-400 font-bold">⚠️</span>
+                  <span>{localModalError || errorMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setLocalModalError(null); onClearError(); }}
+                  className="text-rose-400 hover:text-white font-bold cursor-pointer ml-2"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <p className="text-xs text-zinc-400 mb-4 bg-zinc-900/70 rounded-xl p-3 border border-zinc-800 leading-relaxed">
               Write or paste your 6-letter Room Code below. If you disconnected or reloaded, you will automatically recover your player state and current round data.

@@ -81,3 +81,27 @@ export const WHO_SAID_IT_PROMPTS = [
 
 export const MEMORY_ICONS = ['🍎', '🍌', '🍇', '🍉', '🍓', '🥑', '🍕', '🍔', '🚀', '⭐', '💎', '🎮', '👑', '🔥', '⚡', '🛸'];
 export const MEMORY_COLORS = ['🟦', '🟨', '🟥', '🟩', '🟪', '🟧', '🟫', '⬛'];
+
+export interface SolahChitArchetype {
+  typeId: string;
+  name: string;
+  hindiName: string;
+  icon: string;
+  color: string;
+  description: string;
+}
+
+export const SOLAH_CHITS_ARCHETYPES: SolahChitArchetype[] = [
+  { typeId: 'raja', name: 'Raja', hindiName: 'राजा (King)', icon: '👑', color: '#F59E0B', description: 'The Mighty King' },
+  { typeId: 'rani', name: 'Rani', hindiName: 'रानी (Queen)', icon: '👸', color: '#EC4899', description: 'The Regal Queen' },
+  { typeId: 'senapati', name: 'Senapati', hindiName: 'सेनापति (Commander)', icon: '⚔️', color: '#EF4444', description: 'The Battle Leader' },
+  { typeId: 'chor', name: 'Chor', hindiName: 'चोर (Thief)', icon: '🦹', color: '#64748B', description: 'The Master Infiltrator' },
+  { typeId: 'mantri', name: 'Mantri', hindiName: 'मंत्री (Minister)', icon: '🧙', color: '#8B5CF6', description: 'The Wise Advisor' },
+  { typeId: 'hathi', name: 'Haathi', hindiName: 'हाथी (Elephant)', icon: '🐘', color: '#06B6D4', description: 'The Royal Colossus' },
+  { typeId: 'ghoda', name: 'Ghoda', hindiName: 'घोड़ा (Horse)', icon: '🐎', color: '#D97706', description: 'The Swift Steed' },
+  { typeId: 'baagh', name: 'Baagh', hindiName: 'बाघ (Tiger)', icon: '🐅', color: '#EA580C', description: 'The Fierce Beast' },
+  { typeId: 'cheel', name: 'Cheel', hindiName: 'चील (Eagle)', icon: '🦅', color: '#3B82F6', description: 'The Sky Scout' },
+  { typeId: 'heera', name: 'Heera', hindiName: 'हीरा (Diamond)', icon: '💎', color: '#10B981', description: 'The Pure Gem' },
+  { typeId: 'sona', name: 'Sona', hindiName: 'सोना (Gold)', icon: '🪙', color: '#EAB308', description: 'The Imperial Treasure' },
+  { typeId: 'bijli', name: 'Bijli', hindiName: 'बिजली (Thunder)', icon: '⚡', color: '#F43F5E', description: 'The Shock Wave' }
+];

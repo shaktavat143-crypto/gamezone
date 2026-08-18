@@ -50,7 +50,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
       secret_battle: 'Secret Battle',
       most_likely_to: 'Most Likely To',
       memory_battle: 'Memory Battle',
-      number_guess: 'Number Guess',
+      solah_chits: 'Solah Chits',
       who_said_it: 'Who Said It?'
     };
     return t ? titles[t] || 'Game' : 'Game';

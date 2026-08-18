@@ -6,7 +6,8 @@ import {
   GameType,
   GameSettings,
   ClientWsMessage,
-  ServerWsMessage
+  ServerWsMessage,
+  ClientPartyView
 } from '../types.js';
 import { GameEngine } from './gameEngine.js';
 
@@ -36,6 +37,7 @@ interface ConnectedSocket {
 export class PartyManager {
   private parties: Map<string, Party> = new Map(); // partyCode -> Party
   private sockets: Map<WebSocket, ConnectedSocket> = new Map();
+  private sseListeners: Map<string, Set<(event: string, data: any) => void>> = new Map();
   private tickInterval: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -888,6 +890,18 @@ export class PartyManager {
         });
       }
     });
+
+    // Also notify SSE listeners for this party
+    const listeners = this.sseListeners.get(party.code);
+    if (listeners && listeners.size > 0) {
+      listeners.forEach(cb => {
+        try {
+          cb('party_state', { party });
+        } catch (e) {
+          // ignore dead listener
+        }
+      });
+    }
   }
 
   public broadcastToParty(partyCode: string, message: ServerWsMessage): void {
@@ -896,6 +910,394 @@ export class PartyManager {
         this.send(ws, message);
       }
     });
+
+    // Also notify SSE listeners
+    const listeners = this.sseListeners.get(partyCode);
+    if (listeners && listeners.size > 0) {
+      listeners.forEach(cb => {
+        try {
+          cb(message.type, message.payload);
+        } catch (e) {
+          // ignore dead listener
+        }
+      });
+    }
+  }
+
+  public registerSseListener(partyCode: string, callback: (event: string, data: any) => void): () => void {
+    const code = partyCode.toUpperCase();
+    if (!this.sseListeners.has(code)) {
+      this.sseListeners.set(code, new Set());
+    }
+    const set = this.sseListeners.get(code)!;
+    set.add(callback);
+
+    return () => {
+      set.delete(callback);
+      if (set.size === 0) {
+        this.sseListeners.delete(code);
+      }
+    };
+  }
+
+  // ----------------------------------------------------
+  // REST API Direct Handlers
+  // ----------------------------------------------------
+
+  public apiCreateParty(
+    rawPlayerName: string,
+    rawPartyName?: string,
+    avatar?: string
+  ): { party: ClientPartyView; sessionToken: string; code: string; playerId: string } {
+    const playerName = (rawPlayerName || 'Host').trim().substring(0, 20);
+    const partyName = (rawPartyName || `${playerName}'s Party`).trim().substring(0, 30);
+    const partyCode = this.generatePartyCode();
+    const playerId = 'p_' + Math.random().toString(36).substring(2, 9);
+    const sessionToken = this.generateToken();
+
+    const hostPlayer: Player = {
+      id: playerId,
+      name: playerName,
+      avatar: avatar || DEFAULT_AVATARS[0],
+      color: PLAYER_COLORS[0],
+      isHost: true,
+      isOnline: true,
+      joinedAt: Date.now(),
+      lastSeenAt: Date.now(),
+      totalScore: 0,
+      gameScore: 0,
+      wins: 0,
+      sessionToken
+    };
+
+    const newParty: Party = {
+      id: 'pty_' + Math.random().toString(36).substring(2, 12),
+      code: partyCode,
+      name: partyName,
+      hostId: playerId,
+      isLocked: false,
+      createdAt: Date.now(),
+      lastActivityAt: Date.now(),
+      players: { [playerId]: hostPlayer },
+      chatMessages: [
+        {
+          id: `msg_init_${Date.now()}`,
+          playerId: 'system',
+          playerName: 'Game Zone',
+          playerAvatar: '🎉',
+          playerColor: '#8B5CF6',
+          text: `Welcome to ${partyName}! Share code "${partyCode}" with friends to join.`,
+          timestamp: Date.now(),
+          isSystem: true
+        }
+      ],
+      currentGame: null,
+      gameStatus: 'lobby',
+      gameSettings: {
+        rounds: 3,
+        timeLimit: 45,
+        difficulty: 'normal'
+      },
+      currentRound: 1,
+      totalRounds: 3,
+      roundTimeRemaining: 0,
+      gameState: null,
+      gameResults: null,
+      overallScoreboard: [
+        {
+          playerId,
+          playerName,
+          playerAvatar: hostPlayer.avatar,
+          playerColor: hostPlayer.color,
+          totalScore: 0,
+          wins: 0,
+          isOnline: true
+        }
+      ]
+    };
+
+    this.parties.set(partyCode, newParty);
+    const sanitized = GameEngine.sanitizePartyForPlayer(newParty, playerId);
+
+    return {
+      party: sanitized,
+      sessionToken,
+      code: partyCode,
+      playerId
+    };
+  }
+
+  public apiJoinParty(
+    rawCode: string,
+    rawPlayerName: string,
+    avatar?: string
+  ): { party: ClientPartyView; sessionToken: string; code: string; playerId: string } {
+    const code = (rawCode || '').trim().toUpperCase();
+    const party = this.parties.get(code);
+
+    if (!party) {
+      throw new Error(`Party with code "${code}" does not exist or has expired.`);
+    }
+
+    if (party.isLocked) {
+      throw new Error('This party is locked by the host.');
+    }
+
+    const playerName = (rawPlayerName || 'Player').trim().substring(0, 20);
+    const onlinePlayers = Object.values(party.players).filter(p => p.isOnline);
+    if (onlinePlayers.length >= 10) {
+      throw new Error('This party is full (maximum 10 players).');
+    }
+
+    // Check if player with same name exists and is offline -> restore
+    const existingPlayer = Object.values(party.players).find(
+      p => p.name.toLowerCase() === playerName.toLowerCase() && !p.isOnline
+    );
+
+    let playerId: string;
+    let sessionToken: string;
+
+    if (existingPlayer) {
+      playerId = existingPlayer.id;
+      sessionToken = this.generateToken();
+      existingPlayer.sessionToken = sessionToken;
+      existingPlayer.isOnline = true;
+      existingPlayer.lastSeenAt = Date.now();
+      if (avatar) existingPlayer.avatar = avatar;
+
+      party.chatMessages.push({
+        id: `msg_rejoin_${Date.now()}_${Math.random()}`,
+        playerId: 'system',
+        playerName: 'Game Zone',
+        playerAvatar: '⚡',
+        playerColor: '#3B82F6',
+        text: `${existingPlayer.name} reconnected to the party!`,
+        timestamp: Date.now(),
+        isSystem: true
+      });
+    } else {
+      playerId = 'p_' + Math.random().toString(36).substring(2, 9);
+      sessionToken = this.generateToken();
+      const colorIndex = Object.keys(party.players).length % PLAYER_COLORS.length;
+
+      const newPlayer: Player = {
+        id: playerId,
+        name: playerName,
+        avatar: avatar || DEFAULT_AVATARS[colorIndex % DEFAULT_AVATARS.length],
+        color: PLAYER_COLORS[colorIndex],
+        isHost: false,
+        isOnline: true,
+        joinedAt: Date.now(),
+        lastSeenAt: Date.now(),
+        totalScore: 0,
+        gameScore: 0,
+        wins: 0,
+        sessionToken
+      };
+
+      party.players[playerId] = newPlayer;
+
+      party.overallScoreboard.push({
+        playerId,
+        playerName,
+        playerAvatar: newPlayer.avatar,
+        playerColor: newPlayer.color,
+        totalScore: 0,
+        wins: 0,
+        isOnline: true
+      });
+
+      party.chatMessages.push({
+        id: `msg_join_${Date.now()}_${Math.random()}`,
+        playerId: 'system',
+        playerName: 'Game Zone',
+        playerAvatar: '👋',
+        playerColor: newPlayer.color,
+        text: `${playerName} joined the party!`,
+        timestamp: Date.now(),
+        isSystem: true
+      });
+    }
+
+    party.lastActivityAt = Date.now();
+    this.broadcastPartyState(party);
+
+    const sanitized = GameEngine.sanitizePartyForPlayer(party, playerId);
+    return {
+      party: sanitized,
+      sessionToken,
+      code,
+      playerId
+    };
+  }
+
+  public apiRejoinParty(
+    rawCode: string,
+    rawPlayerName?: string,
+    providedSessionToken?: string,
+    providedPlayerId?: string
+  ): { party: ClientPartyView; sessionToken: string; code: string; playerId: string; reconnectData?: any } {
+    const code = (rawCode || '').trim().toUpperCase();
+    const party = this.parties.get(code);
+
+    if (!party) {
+      throw new Error(`Party with code "${code}" does not exist or has expired.`);
+    }
+
+    const trimmedName = (rawPlayerName || '').trim();
+
+    // 1. Direct session match
+    if (providedPlayerId && providedSessionToken && party.players[providedPlayerId]) {
+      const player = party.players[providedPlayerId];
+      if (player.sessionToken === providedSessionToken) {
+        player.isOnline = true;
+        player.lastSeenAt = Date.now();
+        party.lastActivityAt = Date.now();
+        const reconnectData = party.currentGame ? {
+          gameName: this.getGameName(party.currentGame),
+          round: party.currentRound,
+          totalRounds: party.totalRounds
+        } : undefined;
+        this.broadcastPartyState(party, providedPlayerId);
+        return {
+          party: GameEngine.sanitizePartyForPlayer(party, providedPlayerId),
+          sessionToken: providedSessionToken,
+          code,
+          playerId: providedPlayerId,
+          reconnectData
+        };
+      }
+    }
+
+    // 2. Offline match by playerId
+    if (providedPlayerId && party.players[providedPlayerId]) {
+      const player = party.players[providedPlayerId];
+      const freshToken = this.generateToken();
+      player.sessionToken = freshToken;
+      player.isOnline = true;
+      player.lastSeenAt = Date.now();
+      party.lastActivityAt = Date.now();
+
+      const reconnectData = party.currentGame ? {
+        gameName: this.getGameName(party.currentGame),
+        round: party.currentRound,
+        totalRounds: party.totalRounds
+      } : undefined;
+
+      this.broadcastPartyState(party, providedPlayerId);
+      return {
+        party: GameEngine.sanitizePartyForPlayer(party, providedPlayerId),
+        sessionToken: freshToken,
+        code,
+        playerId: providedPlayerId,
+        reconnectData
+      };
+    }
+
+    // 3. Match by name
+    if (trimmedName) {
+      const matchingOffline = Object.values(party.players).find(
+        p => p.name.toLowerCase() === trimmedName.toLowerCase() && !p.isOnline
+      );
+      if (matchingOffline) {
+        const freshToken = this.generateToken();
+        matchingOffline.sessionToken = freshToken;
+        matchingOffline.isOnline = true;
+        matchingOffline.lastSeenAt = Date.now();
+        party.lastActivityAt = Date.now();
+
+        const reconnectData = party.currentGame ? {
+          gameName: this.getGameName(party.currentGame),
+          round: party.currentRound,
+          totalRounds: party.totalRounds
+        } : undefined;
+
+        this.broadcastPartyState(party, matchingOffline.id);
+        return {
+          party: GameEngine.sanitizePartyForPlayer(party, matchingOffline.id),
+          sessionToken: freshToken,
+          code,
+          playerId: matchingOffline.id,
+          reconnectData
+        };
+      }
+    }
+
+    // 4. Fallback: join anew
+    return this.apiJoinParty(code, trimmedName || 'Player');
+  }
+
+  public apiGetPartyState(code: string, playerId?: string): ClientPartyView | null {
+    const party = this.parties.get(code.toUpperCase());
+    if (!party) return null;
+    return GameEngine.sanitizePartyForPlayer(party, playerId || '');
+  }
+
+  public apiHandleAction(
+    code: string,
+    playerId: string,
+    sessionToken: string,
+    actionType: string,
+    payload: any = {}
+  ): { success: boolean; error?: string } {
+    const party = this.parties.get(code.toUpperCase());
+    if (!party) return { success: false, error: 'Party not found' };
+
+    const player = party.players[playerId];
+    if (!player) return { success: false, error: 'Player not in party' };
+
+    player.isOnline = true;
+    player.lastSeenAt = Date.now();
+
+    const conn: ConnectedSocket = {
+      ws: null as any,
+      partyCode: party.code,
+      playerId: player.id,
+      lastPing: Date.now()
+    };
+
+    switch (actionType) {
+      case 'chat':
+        this.handleChat(conn, payload.text);
+        break;
+      case 'update_avatar':
+        this.handleUpdateAvatar(conn, payload.avatar);
+        break;
+      case 'select_game':
+        this.handleSelectGame(conn, payload.gameType);
+        break;
+      case 'update_settings':
+        this.handleUpdateSettings(conn, payload.settings);
+        break;
+      case 'start_game':
+        this.handleStartGame(conn);
+        break;
+      case 'game_action':
+        this.handleGameAction(conn, payload.action, payload.data);
+        break;
+      case 'next_round':
+        this.handleNextRound(conn);
+        break;
+      case 'end_game':
+        this.handleEndGame(conn);
+        break;
+      case 'restart_game':
+        this.handleRestartGame(conn);
+        break;
+      case 'return_to_lobby':
+        this.handleReturnToLobby(conn);
+        break;
+      case 'kick_player':
+        this.handleKickPlayer(conn, payload.targetPlayerId);
+        break;
+      case 'leave_party':
+        if (conn.ws) this.handleLeaveParty(conn.ws, conn);
+        break;
+      default:
+        return { success: false, error: 'Unknown action' };
+    }
+
+    return { success: true };
   }
 
   private send(ws: WebSocket, message: ServerWsMessage): void {
@@ -910,7 +1312,7 @@ export class PartyManager {
       secret_battle: 'Secret Battle',
       most_likely_to: 'Most Likely To',
       memory_battle: 'Memory Battle',
-      number_guess: 'Number Guess',
+      solah_chits: 'Solah Chits',
       who_said_it: 'Who Said It?'
     };
     return names[type] || 'Game';

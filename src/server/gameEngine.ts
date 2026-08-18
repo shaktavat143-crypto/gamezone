@@ -6,7 +6,9 @@ import {
   SecretBattleRoundData,
   MostLikelyToRoundData,
   MemoryBattleRoundData,
-  NumberGuessRoundData,
+  SolahChitsRoundData,
+  SolahChitsCard,
+  SolahChitsReactionSlam,
   WhoSaidItRoundData,
   MemoryChallenge,
   MemoryChallengeType,
@@ -19,7 +21,8 @@ import {
   MOST_LIKELY_TO_QUESTIONS,
   WHO_SAID_IT_PROMPTS,
   MEMORY_ICONS,
-  MEMORY_COLORS
+  MEMORY_COLORS,
+  SOLAH_CHITS_ARCHETYPES
 } from './gameData.js';
 
 export class GameEngine {
@@ -114,29 +117,17 @@ export class GameEngine {
         const challenge = this.generateMemoryChallenge(party);
         const roundData: MemoryBattleRoundData = {
           challenge,
-          phase: 'memorize',
+          phase: 'ready', // Starts with instructions & ready check
+          readyPlayers: {},
           submissions: {}
         };
         party.gameState = roundData;
-        party.roundTimeRemaining = challenge.memorizeDurationSeconds;
+        party.roundTimeRemaining = 25; // 25s for players to read instructions and click ready
         break;
       }
 
-      case 'number_guess': {
-        let max = 100;
-        if (party.gameSettings.difficulty === 'easy') max = 50;
-        if (party.gameSettings.difficulty === 'hard') max = 1000;
-
-        const targetNumber = Math.floor(Math.random() * max) + 1;
-        const roundData: NumberGuessRoundData = {
-          min: 1,
-          max,
-          targetNumber,
-          currentRange: [1, max],
-          guesses: []
-        };
-        party.gameState = roundData;
-        party.roundTimeRemaining = party.gameSettings.timeLimit || 60;
+      case 'solah_chits': {
+        this.initSolahChitsRound(party);
         break;
       }
 
@@ -156,6 +147,167 @@ export class GameEngine {
         break;
       }
     }
+  }
+
+  /**
+   * Initialize Solah Chits round:
+   * For N players -> N unique archetypes -> 4 of each -> 4N cards shuffled & dealt 4 each
+   */
+  private static initSolahChitsRound(party: Party): void {
+    const onlineIds = Object.keys(party.players).filter(id => party.players[id].isOnline);
+    const playerOrder = onlineIds.length >= 2 ? onlineIds : Object.keys(party.players);
+    const n = Math.max(2, playerOrder.length);
+
+    // Pick N archetypes from pool
+    const selectedArchetypes = this.pickRandom(SOLAH_CHITS_ARCHETYPES, n);
+    // If n > available archetypes, pad with recycled ones
+    while (selectedArchetypes.length < n) {
+      const extra = SOLAH_CHITS_ARCHETYPES[selectedArchetypes.length % SOLAH_CHITS_ARCHETYPES.length];
+      selectedArchetypes.push({ ...extra, typeId: `${extra.typeId}_extra_${selectedArchetypes.length}` });
+    }
+
+    // Build 4N cards deck
+    const deck: SolahChitsCard[] = [];
+    selectedArchetypes.forEach(arch => {
+      for (let c = 1; c <= 4; c++) {
+        deck.push({
+          id: `${arch.typeId}_${c}_${Math.random().toString(36).substring(2, 7)}`,
+          typeId: arch.typeId,
+          name: arch.name,
+          hindiName: arch.hindiName,
+          icon: arch.icon,
+          color: arch.color
+        });
+      }
+    });
+
+    // Shuffle deck
+    const shuffledDeck = [...deck].sort(() => 0.5 - Math.random());
+
+    // Distribute 4 cards each
+    const hands: Record<string, SolahChitsCard[]> = {};
+    playerOrder.forEach((pid, idx) => {
+      hands[pid] = shuffledDeck.slice(idx * 4, idx * 4 + 4);
+    });
+
+    const roundData: SolahChitsRoundData = {
+      playerOrder,
+      cardTypes: selectedArchetypes.map(a => ({
+        typeId: a.typeId,
+        name: a.name,
+        hindiName: a.hindiName,
+        icon: a.icon,
+        color: a.color
+      })),
+      hands,
+      pendingPasses: {},
+      passedInThisRound: {},
+      passCount: 0,
+      phase: 'passing',
+      reactionSlams: [],
+      roundScores: {}
+    };
+
+    party.gameState = roundData;
+    party.roundTimeRemaining = party.gameSettings.timeLimit || 20;
+  }
+
+  /**
+   * Execute circular card transfer in Solah Chits:
+   * Player at index i passes chosen card to player at index (i+1)%n
+   */
+  public static executeSolahChitsPass(party: Party, state: SolahChitsRoundData): void {
+    const playerOrder = state.playerOrder;
+    if (playerOrder.length < 2) return;
+
+    // For any player who didn't select a card in time, auto-pick the card with lowest duplicate count
+    playerOrder.forEach(pid => {
+      if (!state.pendingPasses[pid]) {
+        const hand = state.hands[pid] || [];
+        if (hand.length > 0) {
+          // Count occurrences of each type
+          const counts: Record<string, number> = {};
+          hand.forEach(c => { counts[c.typeId] = (counts[c.typeId] || 0) + 1; });
+          // Pick card with least duplicates to protect potential matching set
+          const sorted = [...hand].sort((a, b) => (counts[a.typeId] || 0) - (counts[b.typeId] || 0));
+          state.pendingPasses[pid] = sorted[0].id;
+        }
+      }
+    });
+
+    // Extract passed cards from each player's hand
+    const cardsToPass: Record<string, SolahChitsCard> = {};
+    playerOrder.forEach(pid => {
+      const cardId = state.pendingPasses[pid];
+      const hand = state.hands[pid] || [];
+      const cardIdx = hand.findIndex(c => c.id === cardId);
+      if (cardIdx !== -1) {
+        const [removedCard] = hand.splice(cardIdx, 1);
+        cardsToPass[pid] = removedCard;
+      } else if (hand.length > 0) {
+        const [removedCard] = hand.splice(0, 1);
+        cardsToPass[pid] = removedCard;
+      }
+    });
+
+    // Pass to next player in the circle: Player i -> Player (i + 1) % n
+    playerOrder.forEach((pid, idx) => {
+      const nextPid = playerOrder[(idx + 1) % playerOrder.length];
+      const card = cardsToPass[pid];
+      if (card) {
+        if (!state.hands[nextPid]) state.hands[nextPid] = [];
+        state.hands[nextPid].push(card);
+      }
+    });
+
+    // Clear pending state and increment pass count
+    state.pendingPasses = {};
+    state.passedInThisRound = {};
+    state.passCount++;
+    party.roundTimeRemaining = party.gameSettings.timeLimit || 20;
+  }
+
+  /**
+   * Evaluate Solah Chits round rankings and scores
+   */
+  private static evaluateSolahChits(party: Party, state: SolahChitsRoundData): void {
+    party.gameStatus = 'round_reveal';
+    state.phase = 'reveal';
+
+    const pointsTable = [100, 75, 55, 40, 30, 20];
+    const roundScores: Record<string, { points: number; rank: number; reason: string }> = {};
+
+    // Award points based on reaction slam order
+    state.reactionSlams.forEach((slam, idx) => {
+      const rank = idx + 1;
+      slam.rank = rank;
+      const pts = rank === 1 ? 100 : (pointsTable[rank - 1] || 15);
+      slam.points = pts;
+
+      roundScores[slam.playerId] = {
+        points: pts,
+        rank,
+        reason: rank === 1 ? 'First to complete 4 chits & call BINGO! 🏆 (+100)' : `Reacted #${rank} in ${(slam.reactionMs / 1000).toFixed(2)}s (+${pts})`
+      };
+
+      if (party.players[slam.playerId]) {
+        party.players[slam.playerId].gameScore += pts;
+        party.players[slam.playerId].totalScore += pts;
+      }
+    });
+
+    // For any player who didn't slam in time
+    state.playerOrder.forEach(pid => {
+      if (!roundScores[pid]) {
+        roundScores[pid] = {
+          points: 0,
+          rank: state.reactionSlams.length + 1,
+          reason: 'Did not slam BINGO button in time (0 pts)'
+        };
+      }
+    });
+
+    state.roundScores = roundScores;
   }
 
   /**
@@ -261,7 +413,6 @@ export class GameEngine {
         const pool = this.pickRandom(MEMORY_ICONS, 6);
         const missingIndex = Math.floor(Math.random() * pool.length);
         const missingItem = pool[missingIndex];
-        const remaining = pool.filter((_, idx) => idx !== missingIndex);
 
         return {
           challengeType: 'whats_missing',
@@ -296,7 +447,6 @@ export class GameEngine {
 
       case 'what_changed': {
         const original = this.pickRandom(MEMORY_ICONS, 5);
-        const changedIdx = Math.floor(Math.random() * original.length);
         const unusedIcons = MEMORY_ICONS.filter(i => !original.includes(i));
         const newItem = this.pickRandom(unusedIcons, 1)[0] || '⭐';
 
@@ -367,7 +517,6 @@ export class GameEngine {
       case 'word_battle': {
         const state = party.gameState as WordBattleRoundData;
         if (action === 'submit_words') {
-          // data = { words: Record<categoryIndex, string> }
           state.submissions[playerId] = data.words || {};
           return true;
         }
@@ -378,7 +527,6 @@ export class GameEngine {
         const state = party.gameState as SecretBattleRoundData;
         if (action === 'submit_clue' && state.phase === 'clues') {
           state.clues[playerId] = (data.clue || '').trim();
-          // If all active players submitted clues, advance to voting
           const activePlayers = Object.keys(party.players).filter(id => party.players[id].isOnline);
           const allSubmitted = activePlayers.every(id => state.clues[id] && state.clues[id].length > 0);
           if (allSubmitted && activePlayers.length > 0) {
@@ -423,7 +571,21 @@ export class GameEngine {
 
       case 'memory_battle': {
         const state = party.gameState as MemoryBattleRoundData;
-        if (action === 'submit_answer' && state.phase === 'answer') {
+        if (action === 'player_ready' && state.phase === 'ready') {
+          state.readyPlayers[playerId] = true;
+          const activePlayers = Object.keys(party.players).filter(id => party.players[id].isOnline);
+          const allReady = activePlayers.every(id => state.readyPlayers[id]);
+          if (allReady && activePlayers.length > 0) {
+            state.phase = 'memorize';
+            party.roundTimeRemaining = state.challenge.memorizeDurationSeconds;
+          }
+          return true;
+        } else if (action === 'force_start_memorize' && state.phase === 'ready') {
+          // Host can force start the memorization phase
+          state.phase = 'memorize';
+          party.roundTimeRemaining = state.challenge.memorizeDurationSeconds;
+          return true;
+        } else if (action === 'submit_answer' && state.phase === 'answer') {
           state.submissions[playerId] = {
             answer: data.answer,
             timeTakenMs: data.timeTakenMs || 5000
@@ -438,43 +600,75 @@ export class GameEngine {
         break;
       }
 
-      case 'number_guess': {
-        const state = party.gameState as NumberGuessRoundData;
-        if (action === 'submit_guess') {
-          const guessNum = parseInt(data.guess, 10);
-          if (isNaN(guessNum) || guessNum < state.min || guessNum > state.max) return false;
+      case 'solah_chits': {
+        const state = party.gameState as SolahChitsRoundData;
+        if (action === 'pass_card' && state.phase === 'passing') {
+          const cardId = data.cardId;
+          const hand = state.hands[playerId] || [];
+          if (hand.some(c => c.id === cardId)) {
+            state.pendingPasses[playerId] = cardId;
+            state.passedInThisRound[playerId] = true;
 
-          let result: 'HIGHER' | 'LOWER' | 'CORRECT' = 'CORRECT';
-          if (guessNum < state.targetNumber) {
-            result = 'HIGHER';
-            if (guessNum >= state.currentRange[0]) {
-              state.currentRange[0] = guessNum + 1;
+            // Check if all players in playerOrder have selected a card
+            const activeOrder = state.playerOrder.filter(pid => party.players[pid]?.isOnline);
+            const allPassed = activeOrder.every(pid => state.pendingPasses[pid]);
+            if (allPassed && activeOrder.length >= 2) {
+              this.executeSolahChitsPass(party, state);
             }
-          } else if (guessNum > state.targetNumber) {
-            result = 'LOWER';
-            if (guessNum <= state.currentRange[1]) {
-              state.currentRange[1] = guessNum - 1;
+            return true;
+          }
+        } else if (action === 'trigger_bingo' && state.phase === 'passing') {
+          const hand = state.hands[playerId] || [];
+          if (hand.length === 4) {
+            const firstType = hand[0].typeId;
+            const isAllMatch = hand.every(c => c.typeId === firstType);
+            if (isAllMatch) {
+              state.phase = 'bingo_slam';
+              state.bingoWinnerId = playerId;
+              state.bingoWinnerCardTypeId = firstType;
+              state.bingoTriggeredAt = Date.now();
+
+              const winner = party.players[playerId];
+              state.reactionSlams = [{
+                playerId,
+                playerName: winner ? winner.name : 'Winner',
+                playerAvatar: winner ? winner.avatar : '👑',
+                playerColor: winner ? winner.color : '#F59E0B',
+                timestamp: Date.now(),
+                reactionMs: 0,
+                rank: 1,
+                points: 100
+              }];
+              party.roundTimeRemaining = 7; // 7s window for all other players to slam
+              return true;
             }
-          } else {
-            result = 'CORRECT';
-            state.winnerPlayerId = playerId;
           }
+        } else if (action === 'slam_bingo' && state.phase === 'bingo_slam') {
+          const alreadySlammed = state.reactionSlams.some(s => s.playerId === playerId);
+          if (!alreadySlammed) {
+            const reactionMs = Date.now() - (state.bingoTriggeredAt || Date.now());
+            const rank = state.reactionSlams.length + 1;
+            const pointsTable = [100, 75, 55, 40, 30, 20];
+            const pts = pointsTable[rank - 1] || 15;
+            const p = party.players[playerId];
 
-          const player = party.players[playerId];
-          state.guesses.unshift({
-            id: `g_${Date.now()}_${Math.random()}`,
-            playerId,
-            playerName: player ? player.name : 'Player',
-            playerColor: player ? player.color : '#3B82F6',
-            guess: guessNum,
-            result,
-            timestamp: Date.now()
-          });
+            state.reactionSlams.push({
+              playerId,
+              playerName: p ? p.name : 'Player',
+              playerAvatar: p ? p.avatar : '⚡',
+              playerColor: p ? p.color : '#3B82F6',
+              timestamp: Date.now(),
+              reactionMs,
+              rank,
+              points: pts
+            });
 
-          if (result === 'CORRECT') {
-            this.finalizeNumberGuessRound(party, state, playerId);
+            const activeOrder = state.playerOrder.filter(pid => party.players[pid]?.isOnline);
+            if (state.reactionSlams.length >= activeOrder.length) {
+              this.evaluateSolahChits(party, state);
+            }
+            return true;
           }
-          return true;
         }
         break;
       }
@@ -486,7 +680,6 @@ export class GameEngine {
           const activePlayers = Object.keys(party.players).filter(id => party.players[id].isOnline);
           const allSubmitted = activePlayers.every(id => state.submissions[id] && state.submissions[id].length > 0);
           if (allSubmitted && activePlayers.length > 0) {
-            // Anonymize and prepare guessing phase
             state.anonymizedAnswers = Object.entries(state.submissions).map(([pid, text], index) => ({
               id: `ans_${index + 1}`,
               text
@@ -496,7 +689,6 @@ export class GameEngine {
           }
           return true;
         } else if (action === 'submit_guesses' && state.phase === 'guessing') {
-          // data = { guesses: Record<answerId, guessedPlayerId> }
           state.guesses[playerId] = data.guesses || {};
           const activePlayers = Object.keys(party.players).filter(id => party.players[id].isOnline);
           const allGuessed = activePlayers.every(id => state.guesses[id] && Object.keys(state.guesses[id]).length > 0);
@@ -559,7 +751,10 @@ export class GameEngine {
 
       case 'memory_battle': {
         const state = party.gameState as MemoryBattleRoundData;
-        if (state.phase === 'memorize') {
+        if (state.phase === 'ready') {
+          state.phase = 'memorize';
+          party.roundTimeRemaining = state.challenge.memorizeDurationSeconds;
+        } else if (state.phase === 'memorize') {
           state.phase = 'answer';
           party.roundTimeRemaining = state.challenge.answerDurationSeconds;
         } else if (state.phase === 'answer') {
@@ -568,15 +763,19 @@ export class GameEngine {
         break;
       }
 
-      case 'number_guess': {
-        this.finalizeNumberGuessRound(party, party.gameState as NumberGuessRoundData, undefined);
+      case 'solah_chits': {
+        const state = party.gameState as SolahChitsRoundData;
+        if (state.phase === 'passing') {
+          this.executeSolahChitsPass(party, state);
+        } else if (state.phase === 'bingo_slam') {
+          this.evaluateSolahChits(party, state);
+        }
         break;
       }
 
       case 'who_said_it': {
         const state = party.gameState as WhoSaidItRoundData;
         if (state.phase === 'writing') {
-          // Fill default for missing players
           Object.keys(party.players).forEach(pid => {
             if (!state.submissions[pid]) {
               state.submissions[pid] = 'No answer submitted';
@@ -606,7 +805,7 @@ export class GameEngine {
     const validatedResults: WordBattleRoundData['validatedResults'] = {};
 
     // Group words by category to find uniqueness
-    const categoryWords: Record<string, Record<string, string[]>> = {}; // category -> cleanWord -> playerIds[]
+    const categoryWords: Record<string, Record<string, string[]>> = {};
     state.categories.forEach(cat => {
       categoryWords[cat] = {};
     });
@@ -666,13 +865,11 @@ export class GameEngine {
   }
 
   private static evaluateSecretBattleVotes(party: Party, state: SecretBattleRoundData): void {
-    // Tally votes
     const voteCounts: Record<string, number> = {};
     Object.values(state.votes).forEach(targetId => {
       voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
     });
 
-    // Find highest voted player
     let maxVotes = 0;
     let mostVotedId: string | null = null;
     Object.entries(voteCounts).forEach(([pid, count]) => {
@@ -685,11 +882,9 @@ export class GameEngine {
     const impostorFound = mostVotedId === state.secretPlayerId;
 
     if (impostorFound) {
-      // Impostor gets 20s to guess majority word!
       state.phase = 'reveal_guess';
       party.roundTimeRemaining = 20;
     } else {
-      // Impostor escaped undetected
       this.finalizeSecretBattleRound(party, state);
     }
   }
@@ -772,11 +967,9 @@ export class GameEngine {
 
     Object.keys(party.players).forEach(pid => {
       let points = 0;
-      // Points for winning the category
       if (winners.includes(pid)) {
         points += 100;
       }
-      // Points for voting with majority
       const myVote = state.votes[pid];
       if (myVote && winners.includes(myVote)) {
         points += 50;
@@ -842,39 +1035,10 @@ export class GameEngine {
     });
   }
 
-  private static finalizeNumberGuessRound(party: Party, state: NumberGuessRoundData, winnerPlayerId?: string): void {
-    party.gameStatus = 'round_reveal';
-    state.winnerPlayerId = winnerPlayerId;
-    const points: Record<string, number> = {};
-
-    Object.keys(party.players).forEach(pid => {
-      let pts = 0;
-      if (pid === winnerPlayerId) {
-        pts = 150;
-      } else {
-        // Find player's closest guess for proximity points
-        const playerGuesses = state.guesses.filter(g => g.playerId === pid);
-        if (playerGuesses.length > 0) {
-          const minDiff = Math.min(...playerGuesses.map(g => Math.abs(g.guess - state.targetNumber)));
-          if (minDiff <= 3) pts = 50;
-          else if (minDiff <= 10) pts = 20;
-        }
-      }
-      points[pid] = pts;
-      if (party.players[pid]) {
-        party.players[pid].gameScore += pts;
-        party.players[pid].totalScore += pts;
-      }
-    });
-
-    state.roundWinnerPoints = points;
-  }
-
   private static evaluateWhoSaidIt(party: Party, state: WhoSaidItRoundData): void {
     party.gameStatus = 'round_reveal';
     state.phase = 'reveal';
 
-    // Map answerId to original author playerId
     const answerAuthorMap: Record<string, string> = {};
     const submissionsList = Object.entries(state.submissions);
     state.anonymizedAnswers.forEach(item => {
@@ -890,7 +1054,6 @@ export class GameEngine {
       let correctGuesses = 0;
       let fooledOthers = 0;
 
-      // Check guesses made by pid
       const myGuesses = state.guesses[pid] || {};
       Object.entries(myGuesses).forEach(([ansId, guessedAuthorId]) => {
         const realAuthorId = answerAuthorMap[ansId];
@@ -899,7 +1062,6 @@ export class GameEngine {
         }
       });
 
-      // Check how many people guessed wrong for pid's answer
       const myAnswerId = Object.entries(answerAuthorMap).find(([_, authorId]) => authorId === pid)?.[0];
       if (myAnswerId) {
         Object.entries(state.guesses).forEach(([guesserId, theirGuesses]) => {
@@ -980,7 +1142,6 @@ export class GameEngine {
 
   /**
    * Sanitize party state before sending to a specific client
-   * e.g., Secret Battle must NOT reveal who the impostor is or the majority word to the impostor!
    */
   public static sanitizePartyForPlayer(party: Party, playerId: string): any {
     const isHost = party.hostId === playerId;
@@ -995,7 +1156,6 @@ export class GameEngine {
         const isSecretPlayer = sbState.secretPlayerId === playerId;
 
         if (sbState.phase === 'clues' || sbState.phase === 'voting') {
-          // Hide identity of secret player and hide the opposite word
           sanitizedGameState.secretPlayerId = '???';
           if (isSecretPlayer) {
             sanitizedGameState.majorityWord = '???';
@@ -1013,21 +1173,24 @@ export class GameEngine {
             };
           }
         } else {
-          // Reveal phase
           privatePlayerData = {
             role: isSecretPlayer ? 'secret_player' : 'regular_player',
             myWord: isSecretPlayer ? sbState.secretWord : sbState.majorityWord
           };
         }
-      } else if (party.currentGame === 'number_guess') {
-        const ngState = party.gameState as NumberGuessRoundData;
-        if (party.gameStatus === 'in_game') {
-          sanitizedGameState.targetNumber = -1; // Hide target number while guessing
+      } else if (party.currentGame === 'solah_chits') {
+        const scState = party.gameState as SolahChitsRoundData;
+        // Keep other players' cards hidden during passing and bingo slam
+        if (scState.phase === 'passing' || scState.phase === 'bingo_slam') {
+          const myHand = scState.hands[playerId] || [];
+          sanitizedGameState.hands = {
+            [playerId]: myHand
+          };
         }
       } else if (party.currentGame === 'who_said_it') {
         const wsiState = party.gameState as WhoSaidItRoundData;
         if (wsiState.phase === 'writing' || wsiState.phase === 'guessing') {
-          sanitizedGameState.submissions = {}; // Hide raw submissions mapping to player IDs
+          sanitizedGameState.submissions = {};
         }
       }
     }
