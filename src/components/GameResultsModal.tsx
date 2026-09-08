@@ -51,7 +51,8 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
       most_likely_to: 'Most Likely To',
       memory_battle: 'Memory Battle',
       solah_chits: 'Solah Chits',
-      who_said_it: 'Who Said It?'
+      who_said_it: 'Who Said It?',
+      wordle: 'Wordle'
     };
     return t ? titles[t] || 'Game' : 'Game';
   };

@@ -10,6 +10,9 @@ import {
   SolahChitsCard,
   SolahChitsReactionSlam,
   WhoSaidItRoundData,
+  WordleRoundData,
+  WordlePlayerState,
+  WordleOpponentProgress,
   MemoryChallenge,
   MemoryChallengeType,
   GameResultItem
@@ -24,6 +27,9 @@ import {
   MEMORY_COLORS,
   SOLAH_CHITS_ARCHETYPES
 } from './gameData.js';
+import { WORDLE_ANSWERS, isValidWordleWord } from '../data/wordleWords.js';
+import { evaluateWordleGuess, updateKeyboardStatus } from '../utils/wordleEvaluator.js';
+import { validateWordBattleSubmission } from './wordBattleValidator.js';
 
 export class GameEngine {
   /**
@@ -144,6 +150,33 @@ export class GameEngine {
         };
         party.gameState = roundData;
         party.roundTimeRemaining = party.gameSettings.timeLimit || 40;
+        break;
+      }
+
+      case 'wordle': {
+        const secretWord = this.pickRandom(WORDLE_ANSWERS, 1)[0] || 'CRANE';
+        const duration = party.gameSettings.timeLimit || 90;
+        const players: Record<string, WordlePlayerState> = {};
+
+        Object.keys(party.players).forEach(pid => {
+          players[pid] = {
+            guesses: [],
+            keyboardStatus: {},
+            isSolved: false,
+            isFinished: false,
+            score: 0
+          };
+        });
+
+        const roundData: WordleRoundData = {
+          secretWord: secretWord.toUpperCase(),
+          maxGuesses: 6,
+          durationSeconds: duration,
+          players,
+          phase: 'guessing'
+        };
+        party.gameState = roundData;
+        party.roundTimeRemaining = duration;
         break;
       }
     }
@@ -699,6 +732,57 @@ export class GameEngine {
         }
         break;
       }
+
+      case 'wordle': {
+        const state = party.gameState as WordleRoundData;
+        if (action === 'submit_guess' && state.phase === 'guessing') {
+          const rawGuess = ((data && data.guess) || '').trim().toUpperCase();
+          const pState = state.players[playerId];
+          if (!pState || pState.isFinished) return false;
+
+          // Must be exactly 5 letters
+          if (rawGuess.length !== 5 || !/^[A-Z]{5}$/.test(rawGuess)) {
+            return false;
+          }
+
+          // Authoritative server-side dictionary validation
+          if (!isValidWordleWord(rawGuess)) {
+            return false;
+          }
+
+          // Evaluate guess against the secret word
+          const evaluations = evaluateWordleGuess(rawGuess, state.secretWord);
+          pState.keyboardStatus = updateKeyboardStatus(pState.keyboardStatus, rawGuess, evaluations);
+          pState.guesses.push({
+            word: rawGuess,
+            evaluations
+          });
+
+          const isMatch = evaluations.every(ev => ev === 'correct');
+          if (isMatch) {
+            pState.isSolved = true;
+            pState.isFinished = true;
+            pState.solvedAtGuessCount = pState.guesses.length;
+          } else if (pState.guesses.length >= state.maxGuesses) {
+            pState.isFinished = true;
+          }
+
+          // Check if all active online players are finished
+          const activePlayers = Object.keys(party.players).filter(id => party.players[id].isOnline);
+          const checkIds = activePlayers.length > 0 ? activePlayers : Object.keys(party.players);
+          const allFinished = checkIds.every(id => {
+            const ps = state.players[id];
+            return ps ? ps.isFinished : true;
+          });
+
+          if (allFinished) {
+            this.evaluateWordle(party, state);
+          }
+
+          return true;
+        }
+        break;
+      }
     }
 
     return false;
@@ -792,6 +876,17 @@ export class GameEngine {
         }
         break;
       }
+
+      case 'wordle': {
+        const state = party.gameState as WordleRoundData;
+        if (state.phase === 'guessing') {
+          Object.values(state.players).forEach(ps => {
+            ps.isFinished = true;
+          });
+          this.evaluateWordle(party, state);
+        }
+        break;
+      }
     }
   }
 
@@ -804,7 +899,7 @@ export class GameEngine {
     const letter = state.letter.toUpperCase();
     const validatedResults: WordBattleRoundData['validatedResults'] = {};
 
-    // Group words by category to find uniqueness
+    // Group words by category to find uniqueness (only for valid words)
     const categoryWords: Record<string, Record<string, string[]>> = {};
     state.categories.forEach(cat => {
       categoryWords[cat] = {};
@@ -813,7 +908,8 @@ export class GameEngine {
     Object.entries(state.submissions).forEach(([playerId, userWords]) => {
       state.categories.forEach((cat, idx) => {
         const rawWord = (userWords[idx] || userWords[cat] || '').trim();
-        if (rawWord.length > 0 && rawWord.toUpperCase().startsWith(letter)) {
+        const validation = validateWordBattleSubmission(rawWord, letter, cat);
+        if (validation.valid) {
           const clean = rawWord.toLowerCase();
           if (!categoryWords[cat][clean]) {
             categoryWords[cat][clean] = [];
@@ -831,11 +927,12 @@ export class GameEngine {
 
       state.categories.forEach((cat, idx) => {
         const rawWord = (userWords[idx] || userWords[cat] || '').trim();
+        const validation = validateWordBattleSubmission(rawWord, letter, cat);
         let valid = false;
         let unique = false;
         let points = 0;
 
-        if (rawWord.length > 0 && rawWord.toUpperCase().startsWith(letter)) {
+        if (validation.valid) {
           valid = true;
           const clean = rawWord.toLowerCase();
           const playersWithSameWord = categoryWords[cat][clean] || [];
@@ -862,6 +959,76 @@ export class GameEngine {
     });
 
     state.validatedResults = validatedResults;
+  }
+
+  private static evaluateWordle(party: Party, state: WordleRoundData): void {
+    state.phase = 'reveal';
+    party.gameStatus = 'round_reveal';
+
+    // Scoring scale:
+    // 1 guess: 600 pts
+    // 2 guesses: 500 pts
+    // 3 guesses: 400 pts
+    // 4 guesses: 300 pts
+    // 5 guesses: 200 pts
+    // 6 guesses: 100 pts
+    // Not solved: 0 pts
+    const guessScoreMap: Record<number, number> = {
+      1: 600,
+      2: 500,
+      3: 400,
+      4: 300,
+      5: 200,
+      6: 100
+    };
+
+    const roundScores: Record<string, {
+      points: number;
+      guessesUsed: number;
+      isSolved: boolean;
+      rank: number;
+      reason?: string;
+    }> = {};
+
+    const playerEntries = Object.entries(state.players);
+
+    // Calculate score for each player
+    playerEntries.forEach(([pid, pState]) => {
+      let points = 0;
+      if (pState.isSolved) {
+        const attempts = pState.guesses.length;
+        points = guessScoreMap[attempts] || 100;
+      }
+      pState.score = points;
+
+      if (party.players[pid]) {
+        party.players[pid].gameScore += points;
+        party.players[pid].totalScore += points;
+      }
+    });
+
+    // Rank players: higher score first; tie break by fewer guesses used
+    const ranked = [...playerEntries].sort((a, b) => {
+      if (b[1].score !== a[1].score) return b[1].score - a[1].score;
+      return a[1].guesses.length - b[1].guesses.length;
+    });
+
+    ranked.forEach(([pid, pState], idx) => {
+      const attempts = pState.guesses.length;
+      let reason = 'Did not solve';
+      if (pState.isSolved) {
+        reason = `Solved in ${attempts} ${attempts === 1 ? 'guess' : 'guesses'}!`;
+      }
+      roundScores[pid] = {
+        points: pState.score,
+        guessesUsed: attempts,
+        isSolved: pState.isSolved,
+        rank: idx + 1,
+        reason
+      };
+    });
+
+    state.roundScores = roundScores;
   }
 
   private static evaluateSecretBattleVotes(party: Party, state: SecretBattleRoundData): void {
@@ -1157,6 +1324,12 @@ export class GameEngine {
 
         if (sbState.phase === 'clues' || sbState.phase === 'voting') {
           sanitizedGameState.secretPlayerId = '???';
+          if (sbState.phase === 'voting') {
+            // Hide other players' votes during voting
+            sanitizedGameState.votes = {
+              [playerId]: sbState.votes[playerId]
+            };
+          }
           if (isSecretPlayer) {
             sanitizedGameState.majorityWord = '???';
             privatePlayerData = {
@@ -1180,17 +1353,120 @@ export class GameEngine {
         }
       } else if (party.currentGame === 'solah_chits') {
         const scState = party.gameState as SolahChitsRoundData;
-        // Keep other players' cards hidden during passing and bingo slam
+        // Keep other players' cards and passed chits hidden during passing and bingo slam
         if (scState.phase === 'passing' || scState.phase === 'bingo_slam') {
           const myHand = scState.hands[playerId] || [];
           sanitizedGameState.hands = {
             [playerId]: myHand
           };
+          sanitizedGameState.pendingPasses = {
+            [playerId]: scState.pendingPasses[playerId]
+          };
         }
       } else if (party.currentGame === 'who_said_it') {
         const wsiState = party.gameState as WhoSaidItRoundData;
-        if (wsiState.phase === 'writing' || wsiState.phase === 'guessing') {
+        if (wsiState.phase === 'writing') {
+          sanitizedGameState.submissions = {
+            [playerId]: wsiState.submissions[playerId]
+          };
+        } else if (wsiState.phase === 'guessing') {
           sanitizedGameState.submissions = {};
+          sanitizedGameState.guesses = {
+            [playerId]: wsiState.guesses[playerId]
+          };
+        }
+      } else if (party.currentGame === 'word_battle') {
+        // Hide other players' submissions during active round
+        if (party.gameStatus === 'in_game') {
+          const wbState = party.gameState as WordBattleRoundData;
+          sanitizedGameState.submissions = {
+            [playerId]: wbState.submissions[playerId] || {}
+          };
+        }
+      } else if (party.currentGame === 'most_likely_to') {
+        // Hide other players' votes during active voting
+        if (party.gameStatus === 'in_game') {
+          const mltState = party.gameState as MostLikelyToRoundData;
+          sanitizedGameState.votes = {
+            [playerId]: mltState.votes[playerId]
+          };
+        }
+      } else if (party.currentGame === 'memory_battle') {
+        // Redact correct answer and player chaos questions before reveal
+        const mbState = party.gameState as MemoryBattleRoundData;
+        if (mbState.phase !== 'reveal') {
+          if (sanitizedGameState.challenge) {
+            sanitizedGameState.challenge.correctAnswer = '???';
+            if (sanitizedGameState.challenge.playerSpecificChaos) {
+              sanitizedGameState.challenge.playerSpecificChaos = {
+                [playerId]: mbState.challenge.playerSpecificChaos[playerId]
+              };
+            }
+          }
+          sanitizedGameState.submissions = {
+            [playerId]: mbState.submissions[playerId]
+          };
+        }
+      } else if (party.currentGame === 'wordle') {
+        const wState = party.gameState as WordleRoundData;
+        const myState: WordlePlayerState = wState.players[playerId] || {
+          guesses: [],
+          keyboardStatus: {},
+          isSolved: false,
+          isFinished: false,
+          score: 0
+        };
+
+        if (party.gameStatus === 'in_game' && wState.phase === 'guessing') {
+          // Never reveal secret word during guessing
+          sanitizedGameState.secretWord = '?????';
+          sanitizedGameState.myState = myState;
+
+          // Opponents' public progress only (no words or tile evaluations leaked)
+          const opponentsProgress: WordleOpponentProgress[] = Object.entries(wState.players)
+            .filter(([pid]) => pid !== playerId)
+            .map(([pid, ps]) => ({
+              playerId: pid,
+              playerName: party.players[pid]?.name || 'Player',
+              playerAvatar: party.players[pid]?.avatar || '👤',
+              playerColor: party.players[pid]?.color || '#8B5CF6',
+              guessesUsed: ps.guesses.length,
+              maxGuesses: wState.maxGuesses,
+              isSolved: ps.isSolved,
+              isFinished: ps.isFinished
+            }));
+          sanitizedGameState.opponentsProgress = opponentsProgress;
+
+          // Strip all other players' full state from the object
+          sanitizedGameState.players = {
+            [playerId]: myState
+          };
+        } else {
+          // Round reveal / results phase: reveal secret word and all final boards
+          sanitizedGameState.revealedSecretWord = wState.secretWord;
+          sanitizedGameState.myState = myState;
+
+          const allFinalBoards: Record<string, {
+            playerName: string;
+            playerAvatar: string;
+            playerColor: string;
+            guesses: typeof myState.guesses;
+            isSolved: boolean;
+            score: number;
+          }> = {};
+
+          Object.entries(wState.players).forEach(([pid, ps]) => {
+            allFinalBoards[pid] = {
+              playerName: party.players[pid]?.name || 'Player',
+              playerAvatar: party.players[pid]?.avatar || '👤',
+              playerColor: party.players[pid]?.color || '#8B5CF6',
+              guesses: ps.guesses,
+              isSolved: ps.isSolved,
+              score: ps.score
+            };
+          });
+
+          sanitizedGameState.allFinalBoards = allFinalBoards;
         }
       }
     }

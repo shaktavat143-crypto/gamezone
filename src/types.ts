@@ -4,7 +4,8 @@ export type GameType =
   | 'most_likely_to'
   | 'memory_battle'
   | 'solah_chits'
-  | 'who_said_it';
+  | 'who_said_it'
+  | 'wordle';
 
 export type PartyStatus = 'lobby' | 'in_game' | 'round_reveal' | 'game_results';
 
@@ -199,13 +200,71 @@ export interface WhoSaidItRoundData {
   roundScores?: Record<string, { points: number; correctGuesses: number; fooledOthers: number }>;
 }
 
+// 7. WORDLE
+export type WordleTileStatus = 'correct' | 'present' | 'absent' | 'empty';
+
+export interface WordleGuess {
+  word: string;
+  evaluations: WordleTileStatus[]; // 5 evaluations corresponding to 5 letters
+}
+
+export interface WordlePlayerState {
+  guesses: WordleGuess[]; // up to 6 guesses
+  currentInput?: string;
+  keyboardStatus: Record<string, WordleTileStatus>; // Letter -> status
+  isSolved: boolean;
+  isFinished: boolean; // isSolved || guesses.length >= 6
+  solvedAtGuessCount?: number;
+  score: number;
+}
+
+export interface WordleOpponentProgress {
+  playerId: string;
+  playerName: string;
+  playerAvatar: string;
+  playerColor: string;
+  guessesUsed: number;
+  maxGuesses: number;
+  isSolved: boolean;
+  isFinished: boolean;
+}
+
+export interface WordleRoundData {
+  secretWord: string; // Kept SERVER-ONLY during guessing!
+  maxGuesses: number; // 6
+  durationSeconds: number;
+  players: Record<string, WordlePlayerState>; // playerId -> state
+  phase: 'guessing' | 'reveal';
+  roundScores?: Record<string, {
+    points: number;
+    guessesUsed: number;
+    isSolved: boolean;
+    rank: number;
+    reason?: string;
+  }>;
+  // Sanitized player-specific properties sent during guessing
+  myState?: WordlePlayerState;
+  opponentsProgress?: WordleOpponentProgress[];
+  // Revealed at round end
+  revealedSecretWord?: string;
+  allFinalBoards?: Record<string, {
+    playerName: string;
+    playerAvatar: string;
+    playerColor: string;
+    guesses: WordleGuess[];
+    isSolved: boolean;
+    score: number;
+  }>;
+}
+
 export type AnyGameRoundData =
   | WordBattleRoundData
   | SecretBattleRoundData
   | MostLikelyToRoundData
   | MemoryBattleRoundData
   | SolahChitsRoundData
-  | WhoSaidItRoundData;
+  | WhoSaidItRoundData
+  | WordleRoundData;
 
 export interface GameResultItem {
   playerId: string;

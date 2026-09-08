@@ -66,5 +66,16 @@ export const AVAILABLE_GAMES: GameMetadata[] = [
     icon: '🎭',
     accentColor: '#06B6D4',
     description: 'Answer juicy prompts anonymously. Guess which friend wrote what and earn points for correct detective work and clever bluffs!'
+  },
+  {
+    id: 'wordle',
+    title: 'Wordle',
+    tagline: 'Guess the hidden 5-letter word in 6 tries. Solo & multiplayer battle!',
+    minPlayers: 1,
+    maxPlayers: 20,
+    estimatedTime: '3–6 min',
+    icon: '🟩',
+    accentColor: '#22C55E',
+    description: 'Crack the secret 5-letter word! Green means right spot, yellow means wrong spot. Private boards during play, fewer guesses earn huge points!'
   }
 ];

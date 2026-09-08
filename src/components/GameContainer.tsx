@@ -9,6 +9,7 @@ import { MostLikelyTo } from './games/MostLikelyTo.js';
 import { MemoryBattle } from './games/MemoryBattle.js';
 import { SolahChits } from './games/SolahChits.js';
 import { WhoSaidIt } from './games/WhoSaidIt.js';
+import { Wordle } from './games/Wordle.js';
 
 interface GameContainerProps {
   party: ClientPartyView;
@@ -38,6 +39,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
         return { title: 'Solah Chits', icon: '🃏', color: '#F59E0B' };
       case 'who_said_it':
         return { title: 'Who Said It?', icon: '🎭', color: '#06B6D4' };
+      case 'wordle':
+        return { title: 'Wordle', icon: '🟩', color: '#22C55E' };
       default:
         return { title: 'Game', icon: '🎮', color: '#8B5CF6' };
     }
@@ -67,6 +70,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
         return <SolahChits party={party} onAction={handleGameAction} isHost={isHost} />;
       case 'who_said_it':
         return <WhoSaidIt party={party} />;
+      case 'wordle':
+        return <Wordle party={party} />;
       default:
         return <div>Unknown game selected.</div>;
     }
