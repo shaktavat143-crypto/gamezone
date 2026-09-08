@@ -184,9 +184,25 @@ export const WordBattle: React.FC<WordBattleProps> = ({ party }) => {
                                 {item.unique ? '+10 Unique' : '+5 Shared'}
                               </span>
                             ) : (
-                              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] text-zinc-500">
-                                0 pts
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {item?.reason && (
+                                  <span
+                                    title={item.details || ''}
+                                    className="rounded bg-rose-950/70 text-rose-300 border border-rose-800/50 px-1.5 py-0.5 text-[8px] font-semibold tracking-wide uppercase"
+                                  >
+                                    {item.reason === 'WRONG_STARTING_LETTER'
+                                      ? 'Wrong Letter'
+                                      : item.reason === 'CATEGORY_MISMATCH'
+                                      ? 'Wrong Category'
+                                      : item.reason === 'NOT_IN_CATEGORY'
+                                      ? 'Not In Category'
+                                      : 'Invalid Word'}
+                                  </span>
+                                )}
+                                <span className="rounded bg-zinc-800/90 text-zinc-500 border border-zinc-700/40 px-1.5 py-0.5 text-[9px] font-medium">
+                                  0 pts
+                                </span>
+                              </div>
                             )}
                           </div>
                         </div>

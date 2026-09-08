@@ -921,7 +921,7 @@ export class GameEngine {
 
     Object.keys(party.players).forEach(playerId => {
       const userWords = state.submissions[playerId] || {};
-      const wordsMap: Record<string, { word: string; valid: boolean; unique: boolean; points: number }> = {};
+      const wordsMap: Record<string, { word: string; valid: boolean; unique: boolean; points: number; reason?: string; details?: string }> = {};
       const scores: Record<string, number> = {};
       let totalRoundScore = 0;
 
@@ -945,7 +945,14 @@ export class GameEngine {
           }
         }
 
-        wordsMap[cat] = { word: rawWord || '—', valid, unique, points };
+        wordsMap[cat] = {
+          word: rawWord || '—',
+          valid,
+          unique,
+          points,
+          reason: validation.reason,
+          details: validation.details
+        };
         scores[cat] = points;
         totalRoundScore += points;
       });

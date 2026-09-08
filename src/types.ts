@@ -71,7 +71,7 @@ export interface WordBattleRoundData {
   validatedResults?: Record<string, {
     scores: Record<string, number>; // category -> score
     totalRoundScore: number;
-    words: Record<string, { word: string; valid: boolean; unique: boolean; points: number }>;
+    words: Record<string, { word: string; valid: boolean; unique: boolean; points: number; reason?: string; details?: string }>;
   }>;
 }
 

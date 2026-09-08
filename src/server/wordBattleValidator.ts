@@ -1,71 +1,68 @@
 // Server-side authoritative validation for Word Battle submissions
+import {
+  ANIMAL_DATASET,
+  FOOD_AND_DRINK_DATASET,
+  CLOTHING_AND_ACCESSORY_DATASET,
+  SPORT_AND_GAME_DATASET,
+  JOB_AND_PROFESSION_DATASET,
+  KITCHEN_ITEM_DATASET,
+  EVERYDAY_OBJECT_DATASET,
+  SUPERPOWER_AND_SPELL_DATASET,
+  COUNTRY_AND_CITY_DATASET,
+  BRAND_AND_COMPANY_DATASET,
+  MOVIE_AND_TV_DATASET,
+  CELEBRITY_AND_CHARACTER_DATASET
+} from '../data/wordBattleCategories.js';
 
-// Curated sets for proper noun categories
-const COUNTRIES_AND_CITIES = new Set([
-  'AFGHANISTAN', 'ALBANIA', 'ALGERIA', 'ANDORRA', 'ANGOLA', 'ARGENTINA', 'ARMENIA', 'AUSTRALIA',
-  'AUSTRIA', 'AZERBAIJAN', 'BAHAMAS', 'BAHRAIN', 'BANGLADESH', 'BARBADOS', 'BELARUS', 'BELGIUM',
-  'BELIZE', 'BENIN', 'BHUTAN', 'BOLIVIA', 'BOSNIA', 'BOTSWANA', 'BRAZIL', 'BRUNEI', 'BULGARIA',
-  'BURKINA FASO', 'BURUNDI', 'CAMBODIA', 'CAMEROON', 'CANADA', 'CHILE', 'CHINA', 'COLOMBIA',
-  'CONGO', 'COSTA RICA', 'CROATIA', 'CUBA', 'CYPRUS', 'CZECHIA', 'DENMARK', 'DJIBOUTI', 'DOMINICA',
-  'ECUADOR', 'EGYPT', 'EL SALVADOR', 'ESTONIA', 'ETHIOPIA', 'FIJI', 'FINLAND', 'FRANCE', 'GABON',
-  'GAMBIA', 'GEORGIA', 'GERMANY', 'GHANA', 'GREECE', 'GRENADA', 'GUATEMALA', 'GUINEA', 'GUYANA',
-  'HAITI', 'HONDURAS', 'HUNGARY', 'ICELAND', 'INDIA', 'INDONESIA', 'IRAN', 'IRAQ', 'IRELAND',
-  'ISRAEL', 'ITALY', 'JAMAICA', 'JAPAN', 'JORDAN', 'KAZAKHSTAN', 'KENYA', 'KIRIBATI', 'KOREA',
-  'KUWAIT', 'KYRGYZSTAN', 'LAOS', 'LATVIA', 'LEBANON', 'LESOTHO', 'LIBERIA', 'LIBYA', 'LITHUANIA',
-  'LUXEMBOURG', 'MADAGASCAR', 'MALAWI', 'MALAYSIA', 'MALDIVES', 'MALI', 'MALTA', 'MAURITANIA',
-  'MAURITIUS', 'MEXICO', 'MICRONESIA', 'MOLDOVA', 'MONACO', 'MONGOLIA', 'MONTENEGRO', 'MOROCCO',
-  'MOZAMBIQUE', 'MYANMAR', 'NAMIBIA', 'NAURU', 'NEPAL', 'NETHERLANDS', 'NEW ZEALAND', 'NICARAGUA',
-  'NIGER', 'NIGERIA', 'NORWAY', 'OMAN', 'PAKISTAN', 'PALAU', 'PANAMA', 'PARAGUAY', 'PERU',
-  'PHILIPPINES', 'POLAND', 'PORTUGAL', 'QATAR', 'ROMANIA', 'RUSSIA', 'RWANDA', 'SAMOA', 'SAN MARINO',
-  'SAUDI ARABIA', 'SENEGAL', 'SERBIA', 'SEYCHELLES', 'SIERRA LEONE', 'SINGAPORE', 'SLOVAKIA',
-  'SLOVENIA', 'SOLOMON ISLANDS', 'SOMALIA', 'SOUTH AFRICA', 'SPAIN', 'SRI LANKA', 'SUDAN', 'SURINAME',
-  'SWEDEN', 'SWITZERLAND', 'SYRIA', 'TAIWAN', 'TAJIKISTAN', 'TANZANIA', 'THAILAND', 'TOGO', 'TONGA',
-  'TRINIDAD', 'TUNISIA', 'TURKEY', 'TURKMENISTAN', 'TUVALU', 'UGANDA', 'UKRAINE', 'UAE', 'UNITED KINGDOM',
-  'USA', 'UNITED STATES', 'URUGUAY', 'UZBEKISTAN', 'VANUATU', 'VATICAN', 'VENEZUELA', 'VIETNAM',
-  'YEMEN', 'ZAMBIA', 'ZIMBABWE', 'PARIS', 'LONDON', 'TOKYO', 'ROME', 'BERLIN', 'MADRID', 'NEW YORK',
-  'DELHI', 'MUMBAI', 'SYDNEY', 'TORONTO', 'DUBAI', 'CAIRO', 'BEIJING', 'SEOUL', 'BANGKOK', 'VIENNA',
-  'AMSTERDAM', 'DUBLIN', 'CHICAGO', 'BOSTON', 'MIAMI', 'LOS ANGELES', 'SAN FRANCISCO', 'MOSCOW',
-  'BARCELONA', 'VENICE', 'FLORENCE', 'MILAN', 'MUNICH', 'FRANKFURT', 'BRUSSELS', 'LISBON', 'ATHENS',
-  'ISTANBUL', 'SINGAPORE', 'HONG KONG', 'SHANGHAI', 'KUALA LUMPUR', 'MANILA', 'JAKARTA', 'DOHA',
-  'RIYADH', 'CAPE TOWN', 'JOHANNESBURG', 'NAIROBI', 'CASABLANCA', 'BUENOS AIRES', 'SANTIAGO', 'LIMA',
-  'BOGOTA', 'RIO DE JANEIRO', 'SAO PAULO', 'MEXICO CITY', 'HAVANA', 'VANCOUVER', 'MONTREAL', 'MELBOURNE'
-]);
+export interface WordBattleValidationResult {
+  valid: boolean;
+  reason?: 'WRONG_STARTING_LETTER' | 'INVALID_WORD' | 'NOT_IN_CATEGORY' | 'CATEGORY_MISMATCH' | 'TOO_SHORT';
+  details?: string;
+}
 
-const BRANDS_AND_COMPANIES = new Set([
-  'APPLE', 'NIKE', 'ADIDAS', 'GOOGLE', 'MICROSOFT', 'AMAZON', 'SONY', 'SAMSUNG', 'TESLA', 'TOYOTA',
-  'HONDA', 'FORD', 'PEPSI', 'COCA COLA', 'GUCCI', 'PRADA', 'ZARA', 'NETFLIX', 'DISNEY', 'MCDONALDS',
-  'STARBUCKS', 'UBER', 'PUMA', 'REEBOK', 'CHANEL', 'ROLEX', 'BMW', 'MERCEDES', 'AUDI', 'PORSCHE',
-  'VOLKSWAGEN', 'FERRARI', 'LAMBORGHINI', 'NISSAN', 'HYUNDAI', 'KIA', 'CHEVROLET', 'INTEL', 'AMD',
-  'NVIDIA', 'META', 'FACEBOOK', 'INSTAGRAM', 'TWITTER', 'TIKTOK', 'SPOTIFY', 'YOUTUBE', 'EBAY',
-  'PAYPAL', 'VISA', 'MASTERCARD', 'KFC', 'BURGER KING', 'SUBWAY', 'DOMINOS', 'PIZZA HUT', 'TARGET',
-  'WALMART', 'COSTCO', 'IKEA', 'LEGO', 'NINTENDO', 'PLAYSTATION', 'XBOX', 'CANON', 'NIKON', 'DELL',
-  'HP', 'LENOVO', 'ASUS', 'ACER', 'LG', 'PANASONIC', 'PHILIPS', 'BOEING', 'AIRBUS', 'HONDA', 'MAZDA'
-]);
+// Map category search terms to dataset references
+function getCategoryDataset(categoryName: string): { dataset: Set<string>; name: string } | null {
+  const cat = categoryName.toLowerCase().trim();
 
-const MOVIES_AND_SHOWS = new Set([
-  'AVATAR', 'BATMAN', 'BARBIE', 'INCEPTION', 'TITANIC', 'GLADIATOR', 'MATRIX', 'STAR WARS',
-  'HARRY POTTER', 'AVENGERS', 'SPIDERMAN', 'SPIDER-MAN', 'FRIENDS', 'BREAKING BAD', 'GAME OF THRONES',
-  'STRANGER THINGS', 'SIMPSONS', 'THE OFFICE', 'SHREK', 'FROZEN', 'LION KING', 'ALADDIN', 'MULAN',
-  'TARZAN', 'CINDERELLA', 'MOANA', 'COCO', 'ENCANTO', 'UP', 'WALL-E', 'CARS', 'FINDING NEMO',
-  'TOY STORY', 'MONSTERS INC', 'RATATOUILLE', 'INCREDIBLES', 'BRAVE', 'TANGLED', 'JOKER', 'IRON MAN',
-  'THOR', 'CAPTAIN AMERICA', 'BLACK PANTHER', 'DOCTOR STRANGE', 'GUARDIANS OF THE GALAXY', 'SUPERMAN',
-  'WONDER WOMAN', 'AQUAMAN', 'FLASH', 'DEADPOOL', 'X-MEN', 'WOLVERINE', 'JURASSIC PARK', 'JAWS',
-  'INDIANA JONES', 'BACK TO THE FUTURE', 'TERMINATOR', 'ALIEN', 'PREDATOR', 'ROCKY', 'RAMBO',
-  'DIE HARD', 'MISSION IMPOSSIBLE', 'TOP GUN', 'GODFATHER', 'GOODFELLAS', 'SCARFACE', 'PULP FICTION',
-  'FIGHT CLUB', 'FORREST GUMP', 'INTERSTELLAR', 'OPPENHEIMER', 'DUNE', 'LORD OF THE RINGS', 'HOBBIT'
-]);
+  if (cat.includes('animal')) {
+    return { dataset: ANIMAL_DATASET, name: 'Animal' };
+  }
+  if (cat.includes('food') || cat.includes('drink')) {
+    return { dataset: FOOD_AND_DRINK_DATASET, name: 'Food or Drink' };
+  }
+  if (cat.includes('cloth') || cat.includes('accessory')) {
+    return { dataset: CLOTHING_AND_ACCESSORY_DATASET, name: 'Clothing or Accessory' };
+  }
+  if (cat.includes('sport') || cat.includes('game')) {
+    return { dataset: SPORT_AND_GAME_DATASET, name: 'Sport or Game' };
+  }
+  if (cat.includes('job') || cat.includes('profession')) {
+    return { dataset: JOB_AND_PROFESSION_DATASET, name: 'Job or Profession' };
+  }
+  if (cat.includes('kitchen')) {
+    return { dataset: KITCHEN_ITEM_DATASET, name: 'Kitchen Item' };
+  }
+  if (cat.includes('everyday') || cat.includes('object')) {
+    return { dataset: EVERYDAY_OBJECT_DATASET, name: 'Everyday Object' };
+  }
+  if (cat.includes('superpower') || cat.includes('spell')) {
+    return { dataset: SUPERPOWER_AND_SPELL_DATASET, name: 'Superpower or Spell' };
+  }
+  if (cat.includes('country') || cat.includes('city')) {
+    return { dataset: COUNTRY_AND_CITY_DATASET, name: 'Country or City' };
+  }
+  if (cat.includes('brand') || cat.includes('company')) {
+    return { dataset: BRAND_AND_COMPANY_DATASET, name: 'Brand or Company' };
+  }
+  if (cat.includes('movie') || cat.includes('show') || cat.includes('tv')) {
+    return { dataset: MOVIE_AND_TV_DATASET, name: 'Movie or TV Show' };
+  }
+  if (cat.includes('celebrity') || cat.includes('character')) {
+    return { dataset: CELEBRITY_AND_CHARACTER_DATASET, name: 'Celebrity or Character' };
+  }
 
-const CELEBRITIES_AND_CHARACTERS = new Set([
-  'BRAD PITT', 'TOM CRUISE', 'LEONARDO DICAPRIO', 'TAYLOR SWIFT', 'BEYONCE', 'RIHANNA', 'DRAKE',
-  'EMINEM', 'MESSI', 'RONALDO', 'LEBRON JAMES', 'MICHAEL JORDAN', 'ELON MUSK', 'BILL GATES',
-  'STEVE JOBS', 'EINSTEIN', 'NEWTON', 'SHAKESPEARE', 'BATMAN', 'SUPERMAN', 'SPIDERMAN', 'IRON MAN',
-  'HULK', 'THOR', 'CAPTAIN AMERICA', 'WOLVERINE', 'JOKER', 'HARRY POTTER', 'HERMIONE', 'RON WEASLEY',
-  'VOLDEMORT', 'DUMBLEDORE', 'FRODO', 'GANDALF', 'LEGOLAS', 'ARAGORN', 'DARTH VADER', 'LUKE SKYWALKER',
-  'YODA', 'HAN SOLO', 'MARIO', 'LUIGI', 'BOWSER', 'PEACH', 'SONIC', 'PIKACHU', 'ASH KETCHUM', 'ZELDA',
-  'LINK', 'MICKEY MOUSE', 'DONALD DUCK', 'GOOFY', 'BUGS BUNNY', 'DAFFY DUCK', 'HOMER SIMPSON',
-  'BART SIMPSON', 'SPONGEBOB', 'PATRICK STAR', 'SQUIDWARD', 'SHREK', 'DONKEY', 'FIONA', 'ELSA',
-  'ANNA', 'OLAF', 'SIMBA', 'MUFASA', 'SCAR', 'ALADDIN', 'GENIE', 'JASMIN', 'MULAN', 'POCAHONTAS'
-]);
+  return null;
+}
 
 // Known spam clusters that should never pass validation
 const KEYBOARD_SPAM_PATTERNS = [
@@ -73,7 +70,7 @@ const KEYBOARD_SPAM_PATTERNS = [
   /^[qwertyuiop]+$/i,
   /^[zxcvbnm]+$/i,
   /^[1234567890]+$/,
-  /(.)\1{2,}/i, // 3+ identical characters in a row: aaa, bbb, zzz
+  /(.)\1{2,}/i, // 3+ identical characters in a row: aaa, bbb, zzz, sss
   /^(abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)+$/i,
   /^[bcdfghjklmnpqrstvwxz]{4,}$/i // 4+ consecutive consonants without vowel/acronym
 ];
@@ -90,11 +87,12 @@ function isObviousSpam(text: string): boolean {
   if (clean.length < 2) return true;
   if (clean.length > 50) return true;
 
-  // Single unique letter repeated e.g. "aaaaaa", "bbbb"
-  const uniqueChars = new Set(clean.replace(/[^a-z]/g, ''));
+  // Single unique letter repeated e.g. "aaaaaa", "ssssss", "zzzzzz"
+  const lettersOnly = clean.replace(/[^a-z]/g, '');
+  const uniqueChars = new Set(lettersOnly);
   if (uniqueChars.size <= 1 && clean.length > 2) return true;
 
-  // Repetitive 2-char cycling e.g. "xyzxyz", "ababab", "asasas"
+  // Repetitive 2-char cycling e.g. "xyzxyz", "ababab", "asasas", "sksksk"
   if (clean.length >= 6) {
     const pair = clean.slice(0, 2);
     if (clean === pair.repeat(Math.floor(clean.length / 2))) {
@@ -119,100 +117,145 @@ function isObviousSpam(text: string): boolean {
 }
 
 /**
+ * Normalizes input word variants for dataset lookup
+ */
+function checkDatasetMatch(word: string, dataset: Set<string>): boolean {
+  const clean = word.toLowerCase().trim().replace(/\s+/g, ' ');
+
+  // Direct match
+  if (dataset.has(clean)) return true;
+
+  // Without hyphens / with spaces
+  const withSpaces = clean.replace(/-/g, ' ');
+  if (dataset.has(withSpaces)) return true;
+
+  // Without punctuation
+  const noPunct = clean.replace(/['",.?!]/g, '');
+  if (dataset.has(noPunct)) return true;
+
+  // Plural to singular normalization
+  if (clean.endsWith('ies') && clean.length > 4) {
+    const singular = clean.slice(0, -3) + 'y';
+    if (dataset.has(singular)) return true;
+  }
+  if (clean.endsWith('es') && clean.length > 3) {
+    const singular = clean.slice(0, -2);
+    if (dataset.has(singular)) return true;
+  }
+  if (clean.endsWith('s') && clean.length > 2) {
+    const singular = clean.slice(0, -1);
+    if (dataset.has(singular)) return true;
+  }
+
+  // Singular to plural check
+  if (dataset.has(clean + 's')) return true;
+  if (dataset.has(clean + 'es')) return true;
+
+  // Check without leading "the " (e.g. user typed "the matrix" -> "matrix" or vice versa)
+  if (clean.startsWith('the ') && clean.length > 4) {
+    const withoutThe = clean.slice(4).trim();
+    if (dataset.has(withoutThe)) return true;
+  } else {
+    if (dataset.has('the ' + clean)) return true;
+  }
+
+  return false;
+}
+
+/**
  * Validates a word submitted in Word Battle
+ * Authoritative 3-step check:
+ * 1. Starting letter (case-insensitive)
+ * 2. Real non-spam word
+ * 3. Exact category match against category datasets
+ *
  * @param rawWord The user's typed string
  * @param requiredLetter The target starting letter
  * @param category The category name
- * @returns { valid: boolean, reason?: string }
+ * @returns WordBattleValidationResult
  */
 export function validateWordBattleSubmission(
   rawWord: string,
   requiredLetter: string,
   category: string
-): { valid: boolean; reason?: string } {
+): WordBattleValidationResult {
   if (!rawWord || typeof rawWord !== 'string') {
-    return { valid: false, reason: 'Empty submission' };
+    return { valid: false, reason: 'INVALID_WORD', details: 'Empty submission' };
   }
 
   const trimmed = rawWord.trim();
   if (trimmed.length < 2) {
-    return { valid: false, reason: 'Word too short (min 2 letters)' };
+    return { valid: false, reason: 'TOO_SHORT', details: 'Word must be at least 2 characters' };
   }
 
+  // A. STARTING LETTER CHECK
+  // Extract first meaningful alphabetic letter
+  const firstAlphaMatch = trimmed.match(/[a-zA-Z]/);
+  if (!firstAlphaMatch) {
+    return { valid: false, reason: 'INVALID_WORD', details: 'Contains no letters' };
+  }
+
+  const firstLetter = firstAlphaMatch[0].toUpperCase();
   const reqChar = requiredLetter.trim().toUpperCase();
-  if (!trimmed.toUpperCase().startsWith(reqChar)) {
-    return { valid: false, reason: `Must start with "${reqChar}"` };
+
+  if (firstLetter !== reqChar) {
+    return {
+      valid: false,
+      reason: 'WRONG_STARTING_LETTER',
+      details: `Must start with "${reqChar}", but starts with "${firstLetter}"`
+    };
   }
 
-  // Anti-spam check applies to all categories
+  // B. ANTI-SPAM & GIBBERISH FILTER
   if (isObviousSpam(trimmed)) {
-    return { valid: false, reason: 'Invalid word format or keyboard spam' };
+    return {
+      valid: false,
+      reason: 'INVALID_WORD',
+      details: 'Contains random gibberish or keyboard spam'
+    };
   }
 
-  const cat = category.toLowerCase();
-  const upper = trimmed.toUpperCase();
-
-  // PROPER NOUN CATEGORIES
-  if (cat.includes('country') || cat.includes('city')) {
-    if (COUNTRIES_AND_CITIES.has(upper)) {
+  // C. CATEGORY-AWARE DATASET VALIDATION
+  const categoryMeta = getCategoryDataset(category);
+  if (!categoryMeta) {
+    // Unsupported dynamic category fallback: enforce standard English letters & vowel rules
+    if (/^[a-zA-Z\s\-'.&]{2,50}$/.test(trimmed) && /[aeiouy]/i.test(trimmed)) {
       return { valid: true };
     }
-    // Plausible proper noun check (letters, spaces, hyphens, min 3 chars or short acronym)
-    if (/^[a-zA-Z\s\-'.]{2,40}$/.test(trimmed) && /[aeiouy]/i.test(trimmed)) {
-      return { valid: true };
-    }
-    return { valid: false, reason: 'Not a recognized country or city' };
+    return { valid: false, reason: 'NOT_IN_CATEGORY', details: 'Invalid category word' };
   }
 
-  if (cat.includes('brand') || cat.includes('company')) {
-    if (BRANDS_AND_COMPANIES.has(upper)) {
-      return { valid: true };
-    }
-    if (/^[a-zA-Z0-9\s\-'.&]{2,35}$/.test(trimmed)) {
-      return { valid: true };
-    }
-    return { valid: false, reason: 'Not a recognized brand or company' };
+  // Check if answer is in target category dataset
+  const inTargetCategory = checkDatasetMatch(trimmed, categoryMeta.dataset);
+
+  if (inTargetCategory) {
+    return { valid: true };
   }
 
-  if (cat.includes('movie') || cat.includes('show') || cat.includes('tv')) {
-    if (MOVIES_AND_SHOWS.has(upper)) {
-      return { valid: true };
+  // If not in target category, check if it belongs to ANOTHER known category (e.g. Snake in Food, or Sandwich in Animal)
+  const otherCategories = [
+    { cat: 'Animal', ds: ANIMAL_DATASET },
+    { cat: 'Food', ds: FOOD_AND_DRINK_DATASET },
+    { cat: 'Clothing', ds: CLOTHING_AND_ACCESSORY_DATASET },
+    { cat: 'Sport', ds: SPORT_AND_GAME_DATASET },
+    { cat: 'Job', ds: JOB_AND_PROFESSION_DATASET },
+    { cat: 'Kitchen', ds: KITCHEN_ITEM_DATASET },
+    { cat: 'Object', ds: EVERYDAY_OBJECT_DATASET }
+  ];
+
+  for (const other of otherCategories) {
+    if (other.ds !== categoryMeta.dataset && checkDatasetMatch(trimmed, other.ds)) {
+      return {
+        valid: false,
+        reason: 'CATEGORY_MISMATCH',
+        details: `"${trimmed}" is a ${other.cat}, not a ${categoryMeta.name}`
+      };
     }
-    if (/^[a-zA-Z0-9\s\-':,!?]{2,50}$/.test(trimmed) && /[aeiouy]/i.test(trimmed)) {
-      return { valid: true };
-    }
-    return { valid: false, reason: 'Not a recognized title' };
   }
 
-  if (cat.includes('celebrity') || cat.includes('character')) {
-    if (CELEBRITIES_AND_CHARACTERS.has(upper)) {
-      return { valid: true };
-    }
-    if (/^[a-zA-Z\s\-'.]{2,40}$/.test(trimmed) && /[aeiouy]/i.test(trimmed)) {
-      return { valid: true };
-    }
-    return { valid: false, reason: 'Not a recognized name or character' };
-  }
-
-  // COMMON NOUN CATEGORIES (Animal, Food or Drink, Everyday Object, Job, Sport, Clothing, Kitchen, etc.)
-  // Format check: strictly alphabetical + spaces or hyphens (e.g. "polar bear", "t-shirt")
-  if (!/^[a-zA-Z\s\-']{2,30}$/.test(trimmed)) {
-    return { valid: false, reason: 'Contains invalid characters' };
-  }
-
-  // Must have plausible consonant/vowel structure
-  const cleanAlpha = trimmed.toLowerCase().replace(/[^a-z]/g, '');
-  if (cleanAlpha.length < 2) {
-    return { valid: false, reason: 'Too short' };
-  }
-
-  // Reject excessive consonants or vowels in a row (e.g. "wrthjk", "aeiouae")
-  if (/[bcdfghjklmnpqrstvwxyz]{5,}/i.test(cleanAlpha)) {
-    return { valid: false, reason: 'Invalid consonant combination' };
-  }
-  if (/[aeiou]{4,}/i.test(cleanAlpha)) {
-    return { valid: false, reason: 'Invalid vowel combination' };
-  }
-
-  return { valid: true };
+  return {
+    valid: false,
+    reason: 'NOT_IN_CATEGORY',
+    details: `"${trimmed}" is not a recognized ${categoryMeta.name}`
+  };
 }
