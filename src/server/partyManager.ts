@@ -679,6 +679,9 @@ export class PartyManager {
       ...party.gameSettings,
       ...settings
     };
+    if (settings.rounds && settings.rounds >= 1) {
+      party.totalRounds = settings.rounds;
+    }
     party.lastActivityAt = Date.now();
     this.broadcastPartyState(party);
   }

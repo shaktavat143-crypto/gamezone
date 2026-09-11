@@ -16,7 +16,6 @@ import { PartyChat } from './components/PartyChat.js';
 import { OverallScoreboardModal } from './components/OverallScoreboardModal.js';
 import { HostControlModal } from './components/HostControlModal.js';
 import { GameResultsModal } from './components/GameResultsModal.js';
-import { WelcomeBackModal } from './components/WelcomeBackModal.js';
 
 export default function App() {
   const [party, setParty] = useState<ClientPartyView | null>(null);
@@ -28,11 +27,18 @@ export default function App() {
   const [isScoreboardOpen, setIsScoreboardOpen] = useState(false);
   const [isHostControlsOpen, setIsHostControlsOpen] = useState(false);
   const [gameResults, setGameResults] = useState<GameResultItem[] | null>(null);
-  const [welcomeBackData, setWelcomeBackData] = useState<{
-    gameName: string;
-    round: number;
-    totalRounds: number;
-  } | null>(null);
+  const [lastReadChatCount, setLastReadChatCount] = useState(0);
+
+  // Update read chat count when chat opens or changes
+  useEffect(() => {
+    if (isChatOpen && party?.chatMessages) {
+      setLastReadChatCount(party.chatMessages.length);
+    }
+  }, [isChatOpen, party?.chatMessages?.length]);
+
+  const unreadChatCount = isChatOpen || !party?.chatMessages
+    ? 0
+    : Math.max(0, party.chatMessages.length - lastReadChatCount);
 
   // Parse URL query parameter for party code (e.g. ?join=A8K29P or ?party=A8K29P)
   const [initialJoinCode, setInitialJoinCode] = useState<string | undefined>(() => {
@@ -84,18 +90,11 @@ export default function App() {
       soundService.playError();
     });
 
-    // Subscribe to reconnect events
-    const unsubReconnect = socketService.subscribeReconnect((data) => {
-      setWelcomeBackData(data);
-      soundService.playWinner();
-    });
-
     return () => {
       unsubParty();
       unsubStatus();
       unsubGameOver();
       unsubError();
-      unsubReconnect();
     };
   }, []);
 
@@ -104,7 +103,6 @@ export default function App() {
     soundService.playClick();
     setParty(null);
     setGameResults(null);
-    setWelcomeBackData(null);
     localStorage.removeItem('gamezone_party_code');
     localStorage.removeItem('gamezone_session_token');
     localStorage.removeItem('gamezone_player_id');
@@ -121,7 +119,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-violet-600 selection:text-white flex flex-col">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-violet-600 selection:text-white flex flex-col w-full max-w-full overflow-x-hidden">
       {/* Top Reconnection / Connection Status Alert Banner */}
       <ConnectionBanner
         status={connectionStatus}
@@ -131,12 +129,13 @@ export default function App() {
       {/* Main Top Navigation Header */}
       <Navbar
         party={party}
+        connectionStatus={connectionStatus}
         onOpenScoreboard={() => setIsScoreboardOpen(true)}
         onOpenHostControls={() => setIsHostControlsOpen(true)}
         onToggleChat={() => setIsChatOpen((prev) => !prev)}
         onLeaveParty={handleLeaveParty}
         isChatOpen={isChatOpen}
-        unreadChatCount={0}
+        unreadChatCount={unreadChatCount}
       />
 
       {/* Main Screen Router */}
@@ -189,6 +188,7 @@ export default function App() {
           players={party.players}
           myPlayerId={party.myPlayerId}
           gameStatus={party.gameStatus}
+          currentGame={party.currentGame}
         />
       )}
 
@@ -203,15 +203,6 @@ export default function App() {
             setGameResults(null);
             socketService.returnToLobby();
           }}
-        />
-      )}
-
-      {/* Welcome Back Reconnected Modal */}
-      {welcomeBackData && (
-        <WelcomeBackModal
-          playerName={party?.players[party.myPlayerId]?.name || 'Player'}
-          reconnectData={welcomeBackData}
-          onDismiss={() => setWelcomeBackData(null)}
         />
       )}
     </div>

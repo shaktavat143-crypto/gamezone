@@ -59,13 +59,14 @@ class SocketClient {
         this.retryCount = 0;
         this.startPing();
 
-        // If we already have party state, bind WebSocket connection to party
-        const partyCode = this.currentPartyCode || localStorage.getItem('gamezone_party_code');
-        const playerId = this.currentPlayerId || localStorage.getItem('gamezone_player_id');
-        const sessionToken = localStorage.getItem('gamezone_session_token');
+        // Only auto-reconnect if we are already actively in a party in memory (e.g. temporary network blip).
+        // Fresh visits or reloads stay on Home so the user can explicitly click Rejoin without popups.
+        const partyCode = this.currentPartyCode;
+        const playerId = this.currentPlayerId;
+        const sessionToken = this.currentPartyCode ? localStorage.getItem('gamezone_session_token') : null;
 
         if (partyCode && playerId && sessionToken) {
-          console.log('[SocketService] 🔄 Auto-identifying socket with party:', { partyCode, playerId });
+          console.log('[SocketService] 🔄 Auto-identifying socket with active party:', { partyCode, playerId });
           this.send({
             type: 'reconnect',
             payload: { partyCode, playerId, sessionToken }

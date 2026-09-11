@@ -63,7 +63,7 @@ export const LobbyChat: React.FC<LobbyChatProps> = ({
       </div>
 
       {/* Message Stream */}
-      <div ref={chatScrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-none">
+      <div ref={chatScrollContainerRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 overscroll-contain no-scrollbar">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-zinc-500 py-8">
             <Smile className="h-8 w-8 mb-2 text-zinc-600" />
@@ -128,7 +128,7 @@ export const LobbyChat: React.FC<LobbyChatProps> = ({
       </div>
 
       {/* Quick Reaction Bar */}
-      <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 border-t border-zinc-800/60 bg-zinc-900/30 scrollbar-none">
+      <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 border-t border-zinc-800/60 bg-zinc-900/30 shrink-0 no-scrollbar">
         <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mr-1 shrink-0">
           React:
         </span>
@@ -137,7 +137,7 @@ export const LobbyChat: React.FC<LobbyChatProps> = ({
             key={emoji}
             type="button"
             onClick={() => handleQuickEmoji(emoji)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-sm hover:scale-115 hover:bg-zinc-800 hover:border-violet-500/40 transition cursor-pointer"
+            className="flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 text-base hover:scale-110 hover:bg-zinc-800 hover:border-violet-500/40 transition cursor-pointer"
           >
             {emoji}
           </button>
@@ -145,7 +145,7 @@ export const LobbyChat: React.FC<LobbyChatProps> = ({
       </div>
 
       {/* Input Box */}
-      <form onSubmit={handleSend} className="p-3 border-t border-zinc-800/80 bg-zinc-950">
+      <form onSubmit={handleSend} className="p-3 border-t border-zinc-800/80 bg-zinc-950 shrink-0">
         <div className="flex items-center gap-2">
           <input
             id="lobby-chat-input"
@@ -154,15 +154,16 @@ export const LobbyChat: React.FC<LobbyChatProps> = ({
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Type a message to the lobby..."
             maxLength={300}
-            className="flex-1 rounded-xl bg-zinc-900 px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 border border-zinc-800 focus:border-violet-500 focus:outline-none transition"
+            className="flex-1 h-11 rounded-xl bg-zinc-900 px-3.5 text-xs text-white placeholder-zinc-500 border border-zinc-800 focus:border-violet-500 focus:outline-none transition"
           />
           <button
             id="lobby-chat-send-btn"
             type="submit"
             disabled={!inputText.trim()}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 disabled:hover:bg-violet-600 transition cursor-pointer shadow-md shadow-violet-600/20 shrink-0"
+            className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-40 disabled:hover:bg-violet-600 transition cursor-pointer shadow-md shadow-violet-600/20 shrink-0"
+            aria-label="Send message"
           >
-            <Send className="h-3.5 w-3.5" />
+            <Send className="h-4 w-4" />
           </button>
         </div>
       </form>

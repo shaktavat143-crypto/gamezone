@@ -56,6 +56,9 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
       } else if (gameType === 'who_said_it') {
         defaultRounds = 3;
         defaultTime = 40;
+      } else if (gameType === 'wordle') {
+        defaultRounds = 3;
+        defaultTime = 0; // Untimed
       }
 
       setRounds(defaultRounds);
@@ -119,8 +122,8 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
-      <div className="relative w-full max-w-lg rounded-3xl border border-violet-500/40 bg-zinc-950 p-6 sm:p-7 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-md overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-lg rounded-3xl border border-violet-500/40 bg-zinc-950 p-4 sm:p-6 md:p-7 shadow-2xl max-h-[90vh] flex flex-col my-auto">
         {/* Ambient Top Glow */}
         <div
           className="absolute -top-16 -left-16 h-40 w-40 rounded-full blur-3xl opacity-20 pointer-events-none"
@@ -129,15 +132,16 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
 
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 flex h-8 w-8 items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-900 hover:text-white transition cursor-pointer"
+          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-900 hover:text-white transition cursor-pointer z-10"
+          aria-label="Close Launch Modal"
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5" />
         </button>
 
         {/* Header */}
-        <div className="flex items-start gap-3.5 mb-6">
+        <div className="flex items-start gap-3 sm:gap-3.5 mb-4 sm:mb-6 shrink-0 pr-10">
           <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-lg border"
+            className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-lg border"
             style={{
               backgroundColor: `${meta.accentColor}20`,
               borderColor: `${meta.accentColor}50`
@@ -147,7 +151,7 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-black text-white">{meta.title}</h2>
+              <h2 className="text-lg sm:text-xl font-black text-white">{meta.title}</h2>
               <span
                 className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider border"
                 style={{
@@ -159,29 +163,30 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
                 Host Config
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-1">{meta.tagline}</p>
+            <p className="text-xs text-zinc-400 mt-0.5 sm:mt-1">{meta.tagline}</p>
           </div>
         </div>
 
-        {/* Game-Specific Settings Form */}
-        <div className="space-y-4 rounded-2xl bg-zinc-900/60 p-4 border border-zinc-800/80 mb-6 max-h-[380px] overflow-y-auto pr-1">
+        {/* Game-Specific Settings Form (Scrollable) */}
+        <div className="space-y-4 rounded-2xl bg-zinc-900/60 p-3.5 sm:p-4 border border-zinc-800/80 mb-4 sm:mb-5 overflow-y-auto flex-1 pr-1 overscroll-contain">
           <div className="flex items-center gap-2 text-xs font-bold text-violet-400 uppercase tracking-wider mb-1">
             <Sliders className="h-3.5 w-3.5" />
-            <span>Customize Rounds & Time Limits</span>
+            <span>Customize Rounds & Settings</span>
           </div>
 
-          {/* 1. Rounds Configuration (Full Freedom) */}
+          {/* 1. Rounds Configuration */}
           <div>
             <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
               <span>Number of Rounds</span>
               <span className="text-violet-400 font-bold font-mono">{rounds} {rounds === 1 ? 'Round' : 'Rounds'}</span>
             </div>
 
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2.5">
               <button
                 type="button"
                 onClick={() => updateRounds(rounds - 1)}
-                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+                className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700 active:scale-95"
+                aria-label="Decrease rounds"
               >
                 <Minus className="h-4 w-4" />
               </button>
@@ -193,24 +198,25 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
                 onChange={(e) => setRoundsInput(e.target.value)}
                 onBlur={handleRoundsBlur}
                 onKeyDown={(e) => e.key === 'Enter' && handleRoundsBlur()}
-                className="flex-1 h-9 rounded-lg bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-violet-400 focus:outline-none"
+                className="flex-1 h-11 rounded-xl bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-violet-400 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => updateRounds(rounds + 1)}
-                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
+                className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700 active:scale-95"
+                aria-label="Increase rounds"
               >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
               {[1, 2, 3, 5, 8].map((num) => (
                 <button
                   key={num}
                   type="button"
                   onClick={() => updateRounds(num)}
-                  className={`rounded-xl py-1.5 text-xs font-bold transition cursor-pointer ${
+                  className={`h-11 min-h-[44px] rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center ${
                     rounds === num
                       ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30'
                       : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
@@ -222,58 +228,76 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Time Limit Configuration (Full Freedom) */}
-          <div>
-            <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
-              <span>{gameType === 'solah_chits' ? 'Pass Wave Timer' : 'Round Time Limit'}</span>
-              <span className="text-violet-400 font-bold font-mono">{timeLimit} Seconds</span>
+          {/* 2. Time Limit Configuration / Untimed Wordle Display */}
+          {gameType === 'wordle' ? (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4">
+              <div className="flex items-center gap-2.5 mb-1.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-bold">
+                  🟩
+                </span>
+                <span className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                  Untimed Puzzle Mode
+                </span>
+              </div>
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Wordle has <strong className="text-emerald-400">no time limit</strong>. Players can take all the time they need to solve each word puzzle without any countdown timer pressure.
+              </p>
             </div>
+          ) : (
+            <div>
+              <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
+                <span>{gameType === 'solah_chits' ? 'Pass Wave Timer' : 'Round Time Limit'}</span>
+                <span className="text-violet-400 font-bold font-mono">{timeLimit} Seconds</span>
+              </div>
 
-            <div className="flex items-center gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => updateTimeLimit(timeLimit - (gameType === 'solah_chits' ? 1 : 5))}
-                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <input
-                type="number"
-                min={5}
-                max={600}
-                step={gameType === 'solah_chits' ? 1 : 5}
-                value={timeLimitInput}
-                onChange={(e) => setTimeLimitInput(e.target.value)}
-                onBlur={handleTimeBlur}
-                onKeyDown={(e) => e.key === 'Enter' && handleTimeBlur()}
-                className="flex-1 h-9 rounded-lg bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-violet-400 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => updateTimeLimit(timeLimit + (gameType === 'solah_chits' ? 1 : 5))}
-                className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              {(gameType === 'solah_chits' ? [6, 8, 10, 12, 15, 20] : [15, 20, 30, 45, 60, 90, 120]).map((sec) => (
+              <div className="flex items-center gap-2 mb-2.5">
                 <button
-                  key={sec}
                   type="button"
-                  onClick={() => updateTimeLimit(sec)}
-                  className={`rounded-lg py-1 px-2.5 text-xs font-bold transition cursor-pointer ${
-                    timeLimit === sec
-                      ? 'bg-violet-600 text-white shadow-sm'
-                      : 'bg-zinc-800 text-zinc-400 hover:text-white'
-                  }`}
+                  onClick={() => updateTimeLimit(timeLimit - (gameType === 'solah_chits' ? 1 : 5))}
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700 active:scale-95"
+                  aria-label="Decrease time limit"
                 >
-                  {sec}s
+                  <Minus className="h-4 w-4" />
                 </button>
-              ))}
+                <input
+                  type="number"
+                  min={5}
+                  max={600}
+                  step={gameType === 'solah_chits' ? 1 : 5}
+                  value={timeLimitInput}
+                  onChange={(e) => setTimeLimitInput(e.target.value)}
+                  onBlur={handleTimeBlur}
+                  onKeyDown={(e) => e.key === 'Enter' && handleTimeBlur()}
+                  className="flex-1 h-11 rounded-xl bg-zinc-900 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-violet-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => updateTimeLimit(timeLimit + (gameType === 'solah_chits' ? 1 : 5))}
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700 active:scale-95"
+                  aria-label="Increase time limit"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {(gameType === 'solah_chits' ? [6, 8, 10, 12, 15, 20] : [15, 20, 30, 45, 60, 90, 120]).map((sec) => (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => updateTimeLimit(sec)}
+                    className={`h-11 min-h-[44px] min-w-[44px] px-3.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center ${
+                      timeLimit === sec
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {sec}s
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Game-Specific Extra Settings */}
           {gameType === 'word_battle' && (
@@ -294,7 +318,7 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
                       setCustomParam(opt.count);
                       soundService.playClick();
                     }}
-                    className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+                    className={`h-11 min-h-[44px] rounded-xl px-3 text-xs font-bold transition cursor-pointer flex items-center justify-center ${
                       customParam === opt.count
                         ? 'bg-violet-600 text-white shadow-md'
                         : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
@@ -326,7 +350,7 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
                       setCustomParam(opt.sec);
                       soundService.playClick();
                     }}
-                    className={`rounded-xl py-2 px-1 text-center text-xs font-bold transition cursor-pointer ${
+                    className={`h-11 min-h-[44px] rounded-xl px-1 text-center text-xs font-bold transition cursor-pointer flex items-center justify-center ${
                       customParam === opt.sec
                         ? 'bg-amber-600 text-white shadow-md'
                         : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
@@ -357,7 +381,7 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
                       setDifficulty(item.diff);
                       soundService.playClick();
                     }}
-                    className={`rounded-xl p-2.5 text-left text-xs font-bold transition cursor-pointer ${
+                    className={`min-h-[50px] rounded-xl p-3 text-left text-xs font-bold transition cursor-pointer flex flex-col justify-center ${
                       difficulty === item.diff
                         ? 'bg-violet-600 text-white shadow-md'
                         : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
@@ -373,7 +397,7 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
         </div>
 
         {/* Player Status Notice */}
-        <div className="flex items-center justify-between text-xs text-zinc-400 mb-6 px-1">
+        <div className="flex items-center justify-between text-xs text-zinc-400 mb-4 px-1 shrink-0">
           <div className="flex items-center gap-1.5">
             <span className="font-semibold text-white">{onlinePlayersCount}</span> online players
             <span className="text-zinc-500">·</span>
@@ -391,11 +415,11 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex items-center justify-end gap-3 pt-2 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl px-4 py-2.5 text-xs font-semibold text-zinc-400 hover:text-white transition cursor-pointer"
+            className="h-12 min-h-[44px] rounded-xl px-5 text-xs font-semibold text-zinc-400 hover:text-white transition cursor-pointer flex items-center justify-center"
           >
             Cancel
           </button>
@@ -404,7 +428,7 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
             type="button"
             disabled={!canStart || !isHost}
             onClick={handleLaunch}
-            className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-black text-white shadow-lg transition cursor-pointer ${
+            className={`flex h-12 min-h-[44px] items-center gap-2 rounded-xl px-6 text-sm font-black text-white shadow-lg transition cursor-pointer ${
               canStart && isHost
                 ? 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-violet-600/30 hover:scale-[1.02]'
                 : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'

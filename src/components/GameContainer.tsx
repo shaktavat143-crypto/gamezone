@@ -18,12 +18,12 @@ interface GameContainerProps {
 export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
   const { currentGame, currentRound, totalRounds, roundTimeRemaining, isHost, gameSettings } = party;
 
-  // Sound effects on timer countdown
+  // Sound effects on timer countdown (Wordle is untimed)
   useEffect(() => {
-    if (roundTimeRemaining > 0 && roundTimeRemaining <= 5 && party.gameStatus === 'in_game') {
+    if (currentGame !== 'wordle' && roundTimeRemaining > 0 && roundTimeRemaining <= 5 && party.gameStatus === 'in_game') {
       soundService.playTick();
     }
-  }, [roundTimeRemaining, party.gameStatus]);
+  }, [roundTimeRemaining, party.gameStatus, currentGame]);
 
   const getGameHeader = (type: GameType | null) => {
     switch (type) {
@@ -102,25 +102,35 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
         </div>
 
         {/* Timer Bar & Leader Pill */}
-        <div className="flex items-center gap-3">
-          {/* Live Timer Pill */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Live Timer Pill / Untimed Wordle Badge */}
           {party.gameStatus === 'in_game' && (
-            <div
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-mono text-xs font-bold border ${
-                roundTimeRemaining <= 5
-                  ? 'bg-rose-950/80 text-rose-300 border-rose-500 animate-pulse'
-                  : 'bg-zinc-950 text-white border-zinc-800'
-              }`}
-            >
-              <Clock className="h-3.5 w-3.5 text-zinc-400" />
-              <span>{roundTimeRemaining}s</span>
-            </div>
+            currentGame === 'wordle' ? (
+              <div
+                className="flex h-11 min-h-[44px] items-center gap-1.5 rounded-xl px-3 sm:px-3.5 font-sans text-xs font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 shadow-sm"
+                title="Wordle is untimed — solve at your own pace!"
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span>Untimed</span>
+              </div>
+            ) : (
+              <div
+                className={`flex h-11 min-h-[44px] items-center gap-1.5 rounded-xl px-3 sm:px-3.5 font-mono text-xs font-bold border ${
+                  roundTimeRemaining <= 5
+                    ? 'bg-rose-950/80 text-rose-300 border-rose-500 animate-pulse'
+                    : 'bg-zinc-950 text-white border-zinc-800'
+                }`}
+              >
+                <Clock className="h-4 w-4 text-zinc-400" />
+                <span>{roundTimeRemaining}s</span>
+              </div>
+            )
           )}
 
           {/* Current Leader */}
           {currentLeader && (
-            <div className="hidden sm:flex items-center gap-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 text-xs text-amber-300">
-              <Trophy className="h-3.5 w-3.5 text-amber-400" />
+            <div className="hidden sm:flex h-11 min-h-[44px] items-center gap-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 text-xs text-amber-300">
+              <Trophy className="h-4 w-4 text-amber-400" />
               <span className="font-semibold">{currentLeader.name}</span>
               <span className="font-mono text-[11px] text-amber-400">({currentLeader.gameScore} pts)</span>
             </div>
@@ -134,17 +144,18 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
                   socketService.returnToLobby();
                 }
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400 hover:bg-rose-950 hover:text-rose-400 transition cursor-pointer"
+              className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 hover:bg-rose-950 hover:text-rose-400 transition cursor-pointer"
               title="Cancel Game"
+              aria-label="Cancel Game"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           )}
         </div>
       </div>
 
       {/* Main Game Surface */}
-      <div className="rounded-3xl border border-zinc-800/80 bg-zinc-950/60 p-4 sm:p-6 md:p-8 backdrop-blur-md shadow-2xl">
+      <div className="rounded-3xl border border-zinc-800/80 bg-zinc-950/60 p-3.5 sm:p-6 md:p-8 backdrop-blur-md shadow-2xl overflow-x-hidden">
         {renderGameContent()}
       </div>
     </div>

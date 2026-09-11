@@ -34,17 +34,18 @@ export const OverallScoreboardModal: React.FC<OverallScoreboardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 p-5 sm:p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 p-4 sm:p-6 shadow-2xl max-h-[90vh] flex flex-col my-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white transition cursor-pointer"
+          className="absolute top-3.5 right-3.5 sm:top-4 sm:right-4 flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-zinc-400 hover:bg-zinc-800 hover:text-white transition cursor-pointer z-10"
+          aria-label="Close Leaderboard"
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+        <div className="flex items-center gap-3 mb-4 sm:mb-5 shrink-0 pr-10">
+          <div className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
             <Trophy className="h-5 w-5" />
           </div>
           <div>
@@ -53,7 +54,7 @@ export const OverallScoreboardModal: React.FC<OverallScoreboardModalProps> = ({
           </div>
         </div>
 
-        <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+        <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1 overscroll-contain flex-1">
           {sortedPlayers.map((player, idx) => {
             const isMe = player.id === myPlayerId;
 
@@ -109,10 +110,10 @@ export const OverallScoreboardModal: React.FC<OverallScoreboardModalProps> = ({
           })}
         </div>
 
-        <div className="mt-5 pt-4 border-t border-zinc-800 flex justify-end">
+        <div className="mt-4 pt-3 sm:mt-5 sm:pt-4 border-t border-zinc-800 flex justify-end shrink-0">
           <button
             onClick={onClose}
-            className="rounded-xl bg-zinc-800 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-700 transition cursor-pointer"
+            className="h-11 min-h-[44px] rounded-xl bg-zinc-800 px-5 text-xs font-semibold text-white hover:bg-zinc-700 transition cursor-pointer flex items-center justify-center"
           >
             Close
           </button>

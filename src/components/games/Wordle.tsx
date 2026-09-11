@@ -257,7 +257,7 @@ export const Wordle: React.FC<WordleProps> = ({ party }) => {
                       return (
                         <div
                           key={colIdx}
-                          className={`flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-xl border-2 text-xl sm:text-2xl font-black transition-all select-none ${
+                          className={`flex h-11 w-11 xs:h-12 xs:w-12 sm:h-14 sm:w-14 items-center justify-center rounded-xl border-2 text-lg xs:text-xl sm:text-2xl font-black transition-all select-none ${
                             guessObj
                               ? getTileStyle(tileStatus)
                               : hasLetter
@@ -277,9 +277,9 @@ export const Wordle: React.FC<WordleProps> = ({ party }) => {
 
           {/* VIRTUAL KEYBOARD */}
           {!isReveal && (
-            <div className="w-full max-w-lg space-y-1.5 px-2 select-none">
+            <div className="w-full max-w-lg space-y-1.5 px-1 sm:px-2 select-none">
               {KEYBOARD_ROWS.map((row, rIdx) => (
-                <div key={rIdx} className="flex justify-center gap-1 sm:gap-1.5">
+                <div key={rIdx} className="flex justify-center gap-0.5 sm:gap-1.5 w-full">
                   {row.map(key => {
                     const isEnter = key === 'ENTER';
                     const isBack = key === 'BACKSPACE';
@@ -293,11 +293,13 @@ export const Wordle: React.FC<WordleProps> = ({ party }) => {
                           else handleAddLetter(key);
                         }}
                         disabled={isFinished}
-                        className={`h-12 sm:h-13 rounded-lg border text-xs sm:text-sm font-bold transition-all active:scale-95 flex items-center justify-center ${
-                          isEnter || isBack ? 'px-3 sm:px-4 text-[11px] sm:text-xs min-w-[54px]' : 'w-8 sm:w-10'
+                        className={`h-11 sm:h-13 rounded-lg border font-bold transition-all active:scale-95 flex items-center justify-center shrink-0 ${
+                          isEnter || isBack
+                            ? 'flex-[1.4] min-w-[36px] sm:min-w-[52px] px-1 text-[10px] sm:text-xs'
+                            : 'flex-1 min-w-[24px] max-w-[40px] text-xs sm:text-sm'
                         } ${getKeyStyle(key)}`}
                       >
-                        {isBack ? <Delete className="h-4 w-4" /> : isEnter ? <CornerDownLeft className="h-4 w-4" /> : key}
+                        {isBack ? <Delete className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : isEnter ? <CornerDownLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : key}
                       </button>
                     );
                   })}

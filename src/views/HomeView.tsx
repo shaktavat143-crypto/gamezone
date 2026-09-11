@@ -210,28 +210,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               id="nav-rejoin-party-btn"
               onClick={() => handleOpenModal('rejoin')}
-              className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold text-amber-300 hover:text-amber-200 hover:bg-amber-950/30 border border-amber-500/30 transition cursor-pointer"
+              className="flex items-center gap-1 sm:gap-1.5 rounded-xl px-2.5 sm:px-3.5 py-2 text-xs font-bold text-amber-300 hover:text-amber-200 hover:bg-amber-950/30 border border-amber-500/30 transition cursor-pointer"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              <span>Rejoin Game</span>
+              <span>Rejoin<span className="hidden sm:inline"> Game</span></span>
             </button>
             <button
               id="nav-join-party-btn"
               onClick={() => handleOpenModal('join')}
-              className="rounded-xl px-3.5 py-2 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-900 transition cursor-pointer"
+              className="rounded-xl px-2.5 sm:px-3.5 py-2 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-900 transition cursor-pointer"
             >
-              Join with Code
+              Join<span className="hidden sm:inline"> with Code</span>
             </button>
             <button
               id="nav-create-party-btn"
               onClick={() => handleOpenModal('create')}
-              className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-500 transition cursor-pointer shadow-md shadow-violet-600/20"
+              className="rounded-xl bg-violet-600 px-3 sm:px-4 py-2 text-xs font-bold text-white hover:bg-violet-500 transition cursor-pointer shadow-md shadow-violet-600/20"
             >
-              Create Party
+              Create<span className="hidden sm:inline"> Party</span>
             </button>
           </div>
         </div>
@@ -346,7 +346,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* CREATE PARTY MODAL */}
       {modalMode === 'create' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
-          <div className="relative w-full max-w-md rounded-3xl border border-violet-500/40 bg-zinc-950 p-6 sm:p-7 shadow-2xl">
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-violet-500/40 bg-zinc-950 p-6 sm:p-7 shadow-2xl">
             <button
               onClick={() => setModalMode(null)}
               className="absolute top-5 right-5 text-zinc-400 hover:text-white transition cursor-pointer"
@@ -471,7 +471,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* JOIN PARTY MODAL */}
       {modalMode === 'join' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
-          <div className="relative w-full max-w-md rounded-3xl border border-violet-500/40 bg-zinc-950 p-6 sm:p-7 shadow-2xl">
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-violet-500/40 bg-zinc-950 p-6 sm:p-7 shadow-2xl">
             <button
               onClick={() => setModalMode(null)}
               className="absolute top-5 right-5 text-zinc-400 hover:text-white transition cursor-pointer"
@@ -597,7 +597,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* REJOIN PARTY MODAL */}
       {modalMode === 'rejoin' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
-          <div className="relative w-full max-w-md rounded-3xl border border-amber-500/40 bg-zinc-950 p-6 sm:p-7 shadow-2xl">
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl border border-amber-500/40 bg-zinc-950 p-6 sm:p-7 shadow-2xl">
             <button
               onClick={() => setModalMode(null)}
               className="absolute top-5 right-5 text-zinc-400 hover:text-white transition cursor-pointer"

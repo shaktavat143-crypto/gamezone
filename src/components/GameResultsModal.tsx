@@ -58,22 +58,22 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
-      <div className="relative w-full max-w-lg rounded-3xl border border-violet-500/40 bg-zinc-950 p-6 sm:p-8 text-center shadow-2xl shadow-violet-500/20 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4 backdrop-blur-md overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-lg rounded-3xl border border-violet-500/40 bg-zinc-950 p-5 sm:p-7 text-center shadow-2xl shadow-violet-500/20 max-h-[90vh] flex flex-col my-auto overflow-hidden">
         {/* Podium Icon */}
-        <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-zinc-950 text-3xl shadow-lg shadow-amber-500/30">
+        <div className="mx-auto mb-3 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-zinc-950 text-3xl shadow-lg shadow-amber-500/30 shrink-0">
           🏆
         </div>
 
-        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase">
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase shrink-0">
           Game Results
         </h2>
-        <p className="text-xs font-semibold text-violet-400 mt-0.5">
+        <p className="text-xs font-semibold text-violet-400 mt-0.5 shrink-0">
           {getGameTitle(currentGame)} Finished!
         </p>
 
         {/* Player Rankings List */}
-        <div className="my-6 space-y-2.5 text-left">
+        <div className="my-4 sm:my-5 space-y-2.5 text-left flex-1 overflow-y-auto pr-1 overscroll-contain">
           {gameResults.map((res, index) => {
             const isMe = res.playerId === myPlayerId;
             const medals = ['🥇', '🥈', '🥉'];
@@ -81,7 +81,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
             return (
               <div
                 key={res.playerId}
-                className={`flex items-center justify-between rounded-2xl p-3.5 border transition ${
+                className={`flex items-center justify-between rounded-2xl p-3 sm:p-3.5 border transition ${
                   index === 0
                     ? 'bg-amber-950/30 border-amber-500/40 shadow-sm'
                     : isMe
@@ -95,7 +95,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                   </div>
 
                   <div
-                    className="flex h-10 w-10 items-center justify-center rounded-xl text-lg font-bold shadow-inner"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-lg font-bold shadow-inner shrink-0"
                     style={{
                       backgroundColor: `${res.playerColor}20`,
                       border: `1px solid ${res.playerColor}50`
@@ -104,14 +104,14 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                     {res.playerAvatar || '🎮'}
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-white truncate max-w-[130px]">
+                      <span className="text-xs font-bold text-white truncate max-w-[120px] sm:max-w-[150px]">
                         {res.playerName}
                       </span>
-                      {index === 0 && <Crown className="h-3 w-3 text-amber-400" />}
+                      {index === 0 && <Crown className="h-3 w-3 text-amber-400 shrink-0" />}
                       {isMe && (
-                        <span className="rounded bg-violet-500/20 px-1 py-0.5 text-[9px] font-bold text-violet-300">
+                        <span className="rounded bg-violet-500/20 px-1 py-0.5 text-[9px] font-bold text-violet-300 shrink-0">
                           YOU
                         </span>
                       )}
@@ -122,7 +122,7 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="font-mono text-sm font-black text-emerald-400">
                     +{res.score.toLocaleString()}
                   </div>
@@ -135,10 +135,10 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
 
         {/* Action Buttons */}
         {isHost ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 shrink-0">
             <button
               onClick={handlePlayAgain}
-              className="flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-violet-600/30 hover:bg-violet-500 transition cursor-pointer"
+              className="flex h-12 min-h-[44px] items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-xs font-bold text-white shadow-lg shadow-violet-600/30 hover:bg-violet-500 transition cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" />
               <span>PLAY AGAIN</span>
@@ -146,14 +146,14 @@ export const GameResultsModal: React.FC<GameResultsModalProps> = ({
 
             <button
               onClick={handleReturnLobby}
-              className="flex items-center justify-center gap-2 rounded-xl bg-zinc-800 px-4 py-3 text-xs font-bold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+              className="flex h-12 min-h-[44px] items-center justify-center gap-2 rounded-xl bg-zinc-800 px-4 text-xs font-bold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
             >
               <LayoutGrid className="h-4 w-4" />
               <span>BACK TO LOBBY</span>
             </button>
           </div>
         ) : (
-          <div className="rounded-xl bg-zinc-900/60 p-3 text-xs text-zinc-400 border border-zinc-800/80">
+          <div className="rounded-xl bg-zinc-900/60 p-3.5 text-xs text-zinc-400 border border-zinc-800/80 min-h-[44px] flex items-center justify-center shrink-0">
             Waiting for Host to choose next action...
           </div>
         )}

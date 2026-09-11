@@ -155,7 +155,6 @@ export class GameEngine {
 
       case 'wordle': {
         const secretWord = this.pickRandom(WORDLE_ANSWERS, 1)[0] || 'CRANE';
-        const duration = party.gameSettings.timeLimit || 90;
         const players: Record<string, WordlePlayerState> = {};
 
         Object.keys(party.players).forEach(pid => {
@@ -171,12 +170,12 @@ export class GameEngine {
         const roundData: WordleRoundData = {
           secretWord: secretWord.toUpperCase(),
           maxGuesses: 6,
-          durationSeconds: duration,
+          durationSeconds: 0, // Untimed puzzle
           players,
           phase: 'guessing'
         };
         party.gameState = roundData;
-        party.roundTimeRemaining = duration;
+        party.roundTimeRemaining = 0; // Untimed (no time limit)
         break;
       }
     }
@@ -794,6 +793,9 @@ export class GameEngine {
   public static handleTick(party: Party): void {
     if (party.gameStatus !== 'in_game') return;
 
+    // Wordle is untimed - never decrement or force timeout
+    if (party.currentGame === 'wordle') return;
+
     if (party.roundTimeRemaining > 0) {
       party.roundTimeRemaining--;
     }
@@ -819,7 +821,7 @@ export class GameEngine {
         const state = party.gameState as SecretBattleRoundData;
         if (state.phase === 'clues') {
           state.phase = 'voting';
-          party.roundTimeRemaining = 30;
+          party.roundTimeRemaining = Math.max(15, Math.min(60, Math.floor((party.gameSettings.timeLimit || 45) * 0.75)));
         } else if (state.phase === 'voting') {
           this.evaluateSecretBattleVotes(party, state);
         } else if (state.phase === 'reveal_guess') {
@@ -870,7 +872,7 @@ export class GameEngine {
             text
           })).sort(() => 0.5 - Math.random());
           state.phase = 'guessing';
-          party.roundTimeRemaining = 40;
+          party.roundTimeRemaining = party.gameSettings.timeLimit || 40;
         } else if (state.phase === 'guessing') {
           this.evaluateWhoSaidIt(party, state);
         }
@@ -878,13 +880,7 @@ export class GameEngine {
       }
 
       case 'wordle': {
-        const state = party.gameState as WordleRoundData;
-        if (state.phase === 'guessing') {
-          Object.values(state.players).forEach(ps => {
-            ps.isFinished = true;
-          });
-          this.evaluateWordle(party, state);
-        }
+        // Wordle is untimed and only finishes when active players finish their attempts
         break;
       }
     }
@@ -907,7 +903,7 @@ export class GameEngine {
 
     Object.entries(state.submissions).forEach(([playerId, userWords]) => {
       state.categories.forEach((cat, idx) => {
-        const rawWord = (userWords[idx] || userWords[cat] || '').trim();
+        const rawWord = (userWords[cat] ?? userWords[idx] ?? '').trim();
         const validation = validateWordBattleSubmission(rawWord, letter, cat);
         if (validation.valid) {
           const clean = rawWord.toLowerCase();
@@ -926,7 +922,7 @@ export class GameEngine {
       let totalRoundScore = 0;
 
       state.categories.forEach((cat, idx) => {
-        const rawWord = (userWords[idx] || userWords[cat] || '').trim();
+        const rawWord = (userWords[cat] ?? userWords[idx] ?? '').trim();
         const validation = validateWordBattleSubmission(rawWord, letter, cat);
         let valid = false;
         let unique = false;

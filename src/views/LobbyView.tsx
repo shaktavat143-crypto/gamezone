@@ -86,7 +86,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       Selected Game
                     </span>
                     <span className="text-xs text-zinc-400 font-medium">
-                      {gameSettings.rounds} {gameSettings.rounds === 1 ? 'Round' : 'Rounds'} • {gameSettings.timeLimit}s timer • <span className="capitalize">{gameSettings.difficulty}</span>
+                      {selectedGameMeta.id === 'wordle'
+                        ? `${gameSettings.rounds} ${gameSettings.rounds === 1 ? 'Round' : 'Rounds'} • Untimed • `
+                        : `${gameSettings.rounds} ${gameSettings.rounds === 1 ? 'Round' : 'Rounds'} • ${gameSettings.timeLimit}s timer • `}
+                      <span className="capitalize">{gameSettings.difficulty}</span>
                     </span>
                   </div>
 
@@ -103,11 +106,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               <div className="w-full md:w-auto flex flex-col sm:flex-row items-center gap-3">
                 {isHost ? (
                   <div className="w-full md:w-auto flex flex-col items-stretch sm:items-end gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full sm:w-auto items-center gap-2">
                       <button
                         type="button"
                         onClick={() => handleOpenLaunchModal(selectedGameMeta.id)}
-                        className="flex items-center justify-center gap-1.5 rounded-2xl bg-zinc-900 border border-zinc-700/80 px-4 py-3 text-xs font-bold text-zinc-200 hover:bg-zinc-800 hover:text-white transition cursor-pointer"
+                        className="flex items-center justify-center gap-1.5 rounded-2xl bg-zinc-900 border border-zinc-700/80 px-4 py-3 text-xs font-bold text-zinc-200 hover:bg-zinc-800 hover:text-white transition cursor-pointer shrink-0"
                         title="Configure settings for this game before starting"
                       >
                         <SlidersHorizontal className="h-4 w-4 text-violet-400" />
@@ -118,7 +121,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                         id="lobby-start-game-btn"
                         onClick={() => handleOpenLaunchModal(selectedGameMeta.id)}
                         disabled={!canStart}
-                        className={`flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-2xl px-7 py-3 text-sm font-black transition-all cursor-pointer ${
+                        className={`flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-2xl px-6 sm:px-7 py-3 text-sm font-black transition-all cursor-pointer ${
                           canStart
                             ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white shadow-xl shadow-violet-600/30 hover:scale-103 hover:from-violet-500 hover:to-pink-500'
                             : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
