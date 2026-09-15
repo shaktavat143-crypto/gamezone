@@ -24,8 +24,13 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
   // Local settings state initialized from party settings
   const [rounds, setRounds] = useState<number>(gameSettings?.rounds || 3);
   const [timeLimit, setTimeLimit] = useState<number>(gameSettings?.timeLimit || 45);
-  const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>(gameSettings?.difficulty || 'normal');
+  const [difficulty, setDifficulty] = useState<'easy' | 'moderate' | 'hard' | 'extreme' | 'normal' | 'expert'>((gameSettings?.difficulty as any) || 'moderate');
   const [customParam, setCustomParam] = useState<any>(gameSettings?.customParam ?? 4);
+
+  // Sudoku custom timer state
+  const [isSudokuCustomTimer, setIsSudokuCustomTimer] = useState<boolean>(false);
+  const [customSudokuMinutes, setCustomSudokuMinutes] = useState<number>(8);
+  const [customSudokuMinutesInput, setCustomSudokuMinutesInput] = useState<string>('8');
 
   const [roundsInput, setRoundsInput] = useState<string>(String(gameSettings?.rounds || 3));
   const [timeLimitInput, setTimeLimitInput] = useState<string>(String(gameSettings?.timeLimit || 45));
@@ -59,6 +64,24 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
       } else if (gameType === 'wordle') {
         defaultRounds = 3;
         defaultTime = 0; // Untimed
+      } else if (gameType === 'sudoku') {
+        defaultRounds = 1;
+        setDifficulty('moderate');
+        if (gameSettings?.timeLimit && ![0, 300, 600, 900].includes(gameSettings.timeLimit)) {
+          const mins = Math.max(1, Math.round(gameSettings.timeLimit / 60));
+          setIsSudokuCustomTimer(true);
+          setCustomSudokuMinutes(mins);
+          setCustomSudokuMinutesInput(String(mins));
+          defaultTime = gameSettings.timeLimit;
+        } else if (gameSettings?.timeLimit && [300, 600, 900].includes(gameSettings.timeLimit)) {
+          setIsSudokuCustomTimer(false);
+          defaultTime = gameSettings.timeLimit;
+        } else {
+          setIsSudokuCustomTimer(false);
+          setCustomSudokuMinutes(8);
+          setCustomSudokuMinutesInput('8');
+          defaultTime = 0; // Untimed default
+        }
       }
 
       setRounds(defaultRounds);
@@ -228,7 +251,7 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
             </div>
           </div>
 
-          {/* 2. Time Limit Configuration / Untimed Wordle Display */}
+          {/* 2. Time Limit Configuration / Untimed Wordle or Sudoku Display */}
           {gameType === 'wordle' ? (
             <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4">
               <div className="flex items-center gap-2.5 mb-1.5">
@@ -242,6 +265,157 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
               <p className="text-xs text-zinc-300 leading-relaxed">
                 Wordle has <strong className="text-emerald-400">no time limit</strong>. Players can take all the time they need to solve each word puzzle without any countdown timer pressure.
               </p>
+            </div>
+          ) : gameType === 'sudoku' ? (
+            <div>
+              <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
+                <span>Timer Mode</span>
+                <span className="text-sky-400 font-bold font-mono">
+                  {timeLimit === 0
+                    ? 'Untimed (No Rush)'
+                    : isSudokuCustomTimer
+                    ? `Custom: ${Math.floor(timeLimit / 60)} Mins (${timeLimit}s)`
+                    : `${Math.floor(timeLimit / 60)} Mins (${timeLimit}s)`}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { id: 'untimed', sec: 0, label: 'Untimed' },
+                  { id: '5m', sec: 300, label: '5 Mins' },
+                  { id: '10m', sec: 600, label: '10 Mins' },
+                  { id: '15m', sec: 900, label: '15 Mins' },
+                  { id: 'custom', sec: -1, label: 'Custom' }
+                ].map((item) => {
+                  const isSelected = item.id === 'custom' ? isSudokuCustomTimer : !isSudokuCustomTimer && timeLimit === item.sec;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        if (item.id === 'custom') {
+                          setIsSudokuCustomTimer(true);
+                          const secs = Math.max(1, customSudokuMinutes) * 60;
+                          setTimeLimit(secs);
+                          setTimeLimitInput(String(secs));
+                        } else {
+                          setIsSudokuCustomTimer(false);
+                          setTimeLimit(item.sec);
+                          setTimeLimitInput(String(item.sec));
+                        }
+                        soundService.playClick();
+                      }}
+                      className={`h-11 min-h-[44px] rounded-xl px-2 text-center text-xs font-bold transition cursor-pointer flex items-center justify-center ${
+                        isSelected
+                          ? 'bg-sky-600 text-white shadow-md ring-1 ring-sky-400'
+                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Sudoku Time Controls */}
+              {isSudokuCustomTimer && (
+                <div className="mt-3 p-3.5 rounded-2xl bg-zinc-900/90 border border-sky-500/30 space-y-2.5 animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-zinc-300">Custom Duration (Minutes)</span>
+                    <span className="font-mono font-bold text-sky-400">
+                      {customSudokuMinutes} {customSudokuMinutes === 1 ? 'Minute' : 'Minutes'} ({customSudokuMinutes * 60}s)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.max(1, customSudokuMinutes - 1);
+                        setCustomSudokuMinutes(next);
+                        setCustomSudokuMinutesInput(String(next));
+                        setTimeLimit(next * 60);
+                        setTimeLimitInput(String(next * 60));
+                        soundService.playClick();
+                      }}
+                      className="h-10 w-10 min-h-[40px] min-w-[40px] rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700 active:scale-95"
+                      aria-label="Decrease minutes"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={120}
+                        value={customSudokuMinutesInput}
+                        onChange={(e) => {
+                          setCustomSudokuMinutesInput(e.target.value);
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val) && val >= 1 && val <= 120) {
+                            setCustomSudokuMinutes(val);
+                            setTimeLimit(val * 60);
+                            setTimeLimitInput(String(val * 60));
+                          }
+                        }}
+                        onBlur={() => {
+                          let val = parseInt(customSudokuMinutesInput, 10);
+                          if (isNaN(val) || val < 1) val = 1;
+                          if (val > 120) val = 120;
+                          setCustomSudokuMinutes(val);
+                          setCustomSudokuMinutesInput(String(val));
+                          setTimeLimit(val * 60);
+                          setTimeLimitInput(String(val * 60));
+                        }}
+                        className="w-full h-10 rounded-xl bg-zinc-950 border border-zinc-700 px-3 text-center text-sm font-bold text-white font-mono focus:border-sky-400 focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 font-semibold pointer-events-none">
+                        mins
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.min(120, customSudokuMinutes + 1);
+                        setCustomSudokuMinutes(next);
+                        setCustomSudokuMinutesInput(String(next));
+                        setTimeLimit(next * 60);
+                        setTimeLimitInput(String(next * 60));
+                        soundService.playClick();
+                      }}
+                      className="h-10 w-10 min-h-[40px] min-w-[40px] rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition cursor-pointer border border-zinc-700 active:scale-95"
+                      aria-label="Increase minutes"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Quick Preset Chips for Custom Time */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[2, 3, 7, 8, 12, 20, 25, 30].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => {
+                          setCustomSudokuMinutes(mins);
+                          setCustomSudokuMinutesInput(String(mins));
+                          setTimeLimit(mins * 60);
+                          setTimeLimitInput(String(mins * 60));
+                          soundService.playClick();
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                          customSudokuMinutes === mins
+                            ? 'bg-sky-600 text-white shadow-sm'
+                            : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        {mins}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div>
@@ -389,6 +563,34 @@ export const GameLaunchModal: React.FC<GameLaunchModalProps> = ({
                   >
                     <div>{item.label}</div>
                     <div className="text-[10px] font-normal opacity-75">{item.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {gameType === 'sudoku' && (
+            <div>
+              <div className="flex justify-between text-xs font-semibold text-zinc-300 mb-2">
+                <span>Difficulty</span>
+                <span className="text-sky-400 font-bold capitalize">{difficulty}</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(['easy', 'moderate', 'hard', 'extreme'] as const).map((diff) => (
+                  <button
+                    key={diff}
+                    type="button"
+                    onClick={() => {
+                      setDifficulty(diff);
+                      soundService.playClick();
+                    }}
+                    className={`h-11 min-h-[44px] rounded-xl px-3 text-center text-xs font-bold transition cursor-pointer flex items-center justify-center capitalize ${
+                      difficulty === diff
+                        ? 'bg-sky-600 text-white shadow-md ring-1 ring-sky-400'
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                    }`}
+                  >
+                    {diff}
                   </button>
                 ))}
               </div>

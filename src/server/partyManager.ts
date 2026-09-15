@@ -750,7 +750,8 @@ export class PartyManager {
   }
 
   private handleReturnToLobby(conn: ConnectedSocket): void {
-    const party = this.getPartyIfHost(conn);
+    if (!conn.partyCode || !conn.playerId) return;
+    const party = this.parties.get(conn.partyCode);
     if (!party) return;
 
     party.gameStatus = 'lobby';
@@ -759,13 +760,14 @@ export class PartyManager {
     party.roundTimeRemaining = 0;
     party.lastActivityAt = Date.now();
 
+    const playerName = party.players[conn.playerId]?.name || 'Player';
     party.chatMessages.push({
       id: `msg_lobby_${Date.now()}`,
       playerId: 'system',
       playerName: 'Game Zone',
       playerAvatar: '🏠',
       playerColor: '#6366F1',
-      text: 'Party returned to the lobby.',
+      text: `${playerName} returned the party to the lobby.`,
       timestamp: Date.now(),
       isSystem: true
     });
@@ -830,7 +832,7 @@ export class PartyManager {
     this.broadcastPartyState(party);
   }
 
-  private handleLeaveParty(ws: WebSocket, conn: ConnectedSocket): void {
+  private handleLeaveParty(ws: WebSocket | null, conn: ConnectedSocket): void {
     if (!conn.partyCode || !conn.playerId) return;
     const party = this.parties.get(conn.partyCode);
 
@@ -862,6 +864,14 @@ export class PartyManager {
 
       this.broadcastPartyState(party);
     }
+
+    // Clean up socket bindings for this connection
+    this.sockets.forEach((sConn) => {
+      if (sConn.partyCode === conn.partyCode && sConn.playerId === conn.playerId) {
+        sConn.partyCode = null;
+        sConn.playerId = null;
+      }
+    });
 
     conn.partyCode = null;
     conn.playerId = null;
@@ -1294,7 +1304,7 @@ export class PartyManager {
         this.handleKickPlayer(conn, payload.targetPlayerId);
         break;
       case 'leave_party':
-        if (conn.ws) this.handleLeaveParty(conn.ws, conn);
+        this.handleLeaveParty(conn.ws || null, conn);
         break;
       default:
         return { success: false, error: 'Unknown action' };
@@ -1317,7 +1327,8 @@ export class PartyManager {
       memory_battle: 'Memory Battle',
       solah_chits: 'Solah Chits',
       who_said_it: 'Who Said It?',
-      wordle: 'Wordle'
+      wordle: 'Wordle',
+      sudoku: 'Sudoku Battle'
     };
     return names[type] || 'Game';
   }

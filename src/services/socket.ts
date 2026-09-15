@@ -551,6 +551,7 @@ class SocketClient {
     this.clearSession();
     this.currentPartyCode = null;
     this.currentPlayerId = null;
+    this.stateListeners.forEach(fn => fn(null as any));
   }
 
   public clearSession(): void {

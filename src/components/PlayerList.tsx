@@ -29,11 +29,9 @@ export const PlayerList: React.FC<PlayerListProps> = ({
     return b.totalScore - a.totalScore;
   });
 
-  const handleKick = (playerId: string, name: string) => {
-    if (confirm(`Are you sure you want to remove ${name} from the party?`)) {
-      socketService.kickPlayer(playerId);
-      soundService.playClick();
-    }
+  const handleKick = (playerId: string, _name: string) => {
+    socketService.kickPlayer(playerId);
+    soundService.playClick();
   };
 
   return (

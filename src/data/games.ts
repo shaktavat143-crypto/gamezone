@@ -77,5 +77,16 @@ export const AVAILABLE_GAMES: GameMetadata[] = [
     icon: '🟩',
     accentColor: '#22C55E',
     description: 'Crack the secret 5-letter word! Green means right spot, yellow means wrong spot. Private boards during play, fewer guesses earn huge points!'
+  },
+  {
+    id: 'sudoku',
+    title: 'Sudoku Battle',
+    tagline: 'Classic 9x9 number puzzle! Race friends live or solve solo with smart notes & hints.',
+    minPlayers: 1,
+    maxPlayers: 20,
+    estimatedTime: '3–10 min',
+    icon: '🔢',
+    accentColor: '#0EA5E9',
+    description: 'Fill the 9x9 grid so every row, column, and 3x3 box contains digits 1-9 without duplicates. Features pencil marks, mistake checking, hints, and live multiplayer progress race!'
   }
 ];

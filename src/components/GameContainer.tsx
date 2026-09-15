@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Clock, Trophy, X, RotateCcw, Play } from 'lucide-react';
 import { ClientPartyView, GameType, Player } from '../types.js';
 import { soundService } from '../services/sound.js';
 import { socketService } from '../services/socket.js';
+import { ConfirmModal } from './ConfirmModal.js';
 import { WordBattle } from './games/WordBattle.js';
 import { SecretBattle } from './games/SecretBattle.js';
 import { MostLikelyTo } from './games/MostLikelyTo.js';
@@ -10,6 +11,7 @@ import { MemoryBattle } from './games/MemoryBattle.js';
 import { SolahChits } from './games/SolahChits.js';
 import { WhoSaidIt } from './games/WhoSaidIt.js';
 import { Wordle } from './games/Wordle.js';
+import { Sudoku } from './games/Sudoku.js';
 
 interface GameContainerProps {
   party: ClientPartyView;
@@ -17,10 +19,12 @@ interface GameContainerProps {
 
 export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
   const { currentGame, currentRound, totalRounds, roundTimeRemaining, isHost, gameSettings } = party;
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
-  // Sound effects on timer countdown (Wordle is untimed)
+  // Sound effects on timer countdown (Wordle and untimed Sudoku have no countdown alarm)
   useEffect(() => {
-    if (currentGame !== 'wordle' && roundTimeRemaining > 0 && roundTimeRemaining <= 5 && party.gameStatus === 'in_game') {
+    const isUntimed = currentGame === 'wordle' || (currentGame === 'sudoku' && roundTimeRemaining === 0);
+    if (!isUntimed && roundTimeRemaining > 0 && roundTimeRemaining <= 5 && party.gameStatus === 'in_game') {
       soundService.playTick();
     }
   }, [roundTimeRemaining, party.gameStatus, currentGame]);
@@ -41,6 +45,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
         return { title: 'Who Said It?', icon: '🎭', color: '#06B6D4' };
       case 'wordle':
         return { title: 'Wordle', icon: '🟩', color: '#22C55E' };
+      case 'sudoku':
+        return { title: 'Sudoku Battle', icon: '🔢', color: '#0EA5E9' };
       default:
         return { title: 'Game', icon: '🎮', color: '#8B5CF6' };
     }
@@ -72,6 +78,8 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
         return <WhoSaidIt party={party} />;
       case 'wordle':
         return <Wordle party={party} />;
+      case 'sudoku':
+        return <Sudoku party={party} />;
       default:
         return <div>Unknown game selected.</div>;
     }
@@ -103,14 +111,14 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
 
         {/* Timer Bar & Leader Pill */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Live Timer Pill / Untimed Wordle Badge */}
+          {/* Live Timer Pill / Untimed Wordle or Sudoku Badge */}
           {party.gameStatus === 'in_game' && (
-            currentGame === 'wordle' ? (
+            (currentGame === 'wordle' || (currentGame === 'sudoku' && roundTimeRemaining === 0)) ? (
               <div
-                className="flex h-11 min-h-[44px] items-center gap-1.5 rounded-xl px-3 sm:px-3.5 font-sans text-xs font-bold bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 shadow-sm"
-                title="Wordle is untimed — solve at your own pace!"
+                className="flex h-11 min-h-[44px] items-center gap-1.5 rounded-xl px-3 sm:px-3.5 font-sans text-xs font-bold bg-sky-950/40 text-sky-300 border border-sky-500/30 shadow-sm"
+                title="Untimed puzzle — solve at your own pace!"
               >
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="h-2 w-2 rounded-full bg-sky-400" />
                 <span>Untimed</span>
               </div>
             ) : (
@@ -136,21 +144,20 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
             </div>
           )}
 
-          {/* Host Cancel/End Game */}
-          {isHost && (
-            <button
-              onClick={() => {
-                if (confirm('Cancel active game and return all players to the lobby?')) {
-                  socketService.returnToLobby();
-                }
-              }}
-              className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-zinc-800 text-zinc-400 hover:bg-rose-950 hover:text-rose-400 transition cursor-pointer"
-              title="Cancel Game"
-              aria-label="Cancel Game"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
+          {/* Cancel/Return to Lobby Button */}
+          <button
+            id="cancel-game-btn"
+            onClick={() => {
+              soundService.playClick();
+              setShowCancelModal(true);
+            }}
+            className="flex h-11 min-h-[44px] items-center gap-1.5 rounded-xl bg-zinc-900 hover:bg-rose-950/40 border border-zinc-800 hover:border-rose-700/50 text-zinc-400 hover:text-rose-300 px-3 transition cursor-pointer"
+            title="Cancel Game"
+            aria-label="Cancel Game"
+          >
+            <X className="h-4 w-4 text-zinc-400 group-hover:text-rose-400" />
+            <span className="text-xs font-bold hidden sm:inline">Cancel Game</span>
+          </button>
         </div>
       </div>
 
@@ -158,6 +165,23 @@ export const GameContainer: React.FC<GameContainerProps> = ({ party }) => {
       <div className="rounded-3xl border border-zinc-800/80 bg-zinc-950/60 p-3.5 sm:p-6 md:p-8 backdrop-blur-md shadow-2xl overflow-x-hidden">
         {renderGameContent()}
       </div>
+
+      {/* In-App Cancel Game Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showCancelModal}
+        title="Cancel Game?"
+        description="Are you sure you want to cancel the active match? All players will be returned to the party lobby."
+        confirmText="Return to Lobby"
+        cancelText="Resume Match"
+        variant="danger"
+        icon={<X className="h-6 w-6" />}
+        onConfirm={() => {
+          soundService.playClick();
+          setShowCancelModal(false);
+          socketService.returnToLobby();
+        }}
+        onClose={() => setShowCancelModal(false)}
+      />
     </div>
   );
 };

@@ -13,6 +13,10 @@ import {
   WordleRoundData,
   WordlePlayerState,
   WordleOpponentProgress,
+  SudokuRoundData,
+  SudokuPlayerState,
+  SudokuOpponentProgress,
+  SudokuDifficulty,
   MemoryChallenge,
   MemoryChallengeType,
   GameResultItem
@@ -30,6 +34,7 @@ import {
 import { WORDLE_ANSWERS, isValidWordleWord } from '../data/wordleWords.js';
 import { evaluateWordleGuess, updateKeyboardStatus } from '../utils/wordleEvaluator.js';
 import { validateWordBattleSubmission } from './wordBattleValidator.js';
+import { generateSudokuPuzzle, isSudokuComplete } from '../utils/sudokuGenerator.js';
 
 export class GameEngine {
   /**
@@ -176,6 +181,47 @@ export class GameEngine {
         };
         party.gameState = roundData;
         party.roundTimeRemaining = 0; // Untimed (no time limit)
+        break;
+      }
+
+      case 'sudoku': {
+        const difficulty = (party.gameSettings.difficulty as SudokuDifficulty) || 'moderate';
+        const timeLimit = party.gameSettings.timeLimit || 0; // 0 = untimed, or e.g. 300 / 600
+        const { puzzle, solution } = generateSudokuPuzzle(difficulty);
+
+        const initialCluesCount = puzzle.flat().filter(v => v !== 0).length;
+        const totalCellsToSolve = 81 - initialCluesCount;
+
+        const players: Record<string, SudokuPlayerState> = {};
+        Object.keys(party.players).forEach(pid => {
+          players[pid] = {
+            playerId: pid,
+            board: puzzle.map(row => [...row]),
+            notes: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => [] as number[])),
+            initialClues: puzzle.map(row => row.map(v => v !== 0)),
+            mistakes: 0,
+            correctCount: initialCluesCount,
+            totalCellsToSolve,
+            solvedCellsCount: 0,
+            isSolved: false,
+            isFinished: false,
+            failedDueToMistakes: false,
+            score: 0
+          };
+        });
+
+        const roundData: SudokuRoundData = {
+          difficulty,
+          durationSeconds: timeLimit,
+          roundStartTime: Date.now(),
+          initialBoard: puzzle,
+          solutionBoard: solution,
+          players,
+          phase: 'playing'
+        };
+
+        party.gameState = roundData;
+        party.roundTimeRemaining = timeLimit; // 0 if untimed
         break;
       }
     }
@@ -744,6 +790,12 @@ export class GameEngine {
             return false;
           }
 
+          // Same word cannot be written/submitted twice
+          const alreadyGuessed = pState.guesses.some(g => g.word.toUpperCase() === rawGuess);
+          if (alreadyGuessed) {
+            return false;
+          }
+
           // Authoritative server-side dictionary validation
           if (!isValidWordleWord(rawGuess)) {
             return false;
@@ -782,6 +834,195 @@ export class GameEngine {
         }
         break;
       }
+
+      case 'sudoku': {
+        const state = party.gameState as SudokuRoundData;
+        if (state.phase !== 'playing') return false;
+
+        const pState = state.players[playerId];
+        if (!pState || pState.isFinished) return false;
+
+        if (action === 'sudoku_move') {
+          const row = Number(data.row);
+          const col = Number(data.col);
+          const val = Number(data.value);
+          const isNote = Boolean(data.isNote);
+
+          if (isNaN(row) || isNaN(col) || row < 0 || row > 8 || col < 0 || col > 8) return false;
+          if (pState.initialClues[row][col]) return false;
+
+          if (isNote) {
+            if (val >= 1 && val <= 9) {
+              const currentNotes = pState.notes[row][col] || [];
+              if (currentNotes.includes(val)) {
+                pState.notes[row][col] = currentNotes.filter(n => n !== val);
+              } else {
+                pState.notes[row][col] = [...currentNotes, val].sort((a, b) => a - b);
+              }
+              return true;
+            }
+            return false;
+          }
+
+          if (val >= 1 && val <= 9) {
+            pState.board[row][col] = val;
+            pState.notes[row][col] = [];
+
+            const isCorrect = val === state.solutionBoard[row][col];
+            if (!isCorrect) {
+              pState.mistakes += 1;
+            } else {
+              for (let c = 0; c < 9; c++) {
+                pState.notes[row][c] = pState.notes[row][c].filter(n => n !== val);
+              }
+              for (let r = 0; r < 9; r++) {
+                pState.notes[r][col] = pState.notes[r][col].filter(n => n !== val);
+              }
+              const startR = Math.floor(row / 3) * 3;
+              const startC = Math.floor(col / 3) * 3;
+              for (let r = startR; r < startR + 3; r++) {
+                for (let c = startC; c < startC + 3; c++) {
+                  pState.notes[r][c] = pState.notes[r][c].filter(n => n !== val);
+                }
+              }
+            }
+
+            let correct = 0;
+            let solved = 0;
+            for (let r = 0; r < 9; r++) {
+              for (let c = 0; c < 9; c++) {
+                if (pState.board[r][c] === state.solutionBoard[r][c]) {
+                  correct++;
+                  if (!pState.initialClues[r][c]) solved++;
+                }
+              }
+            }
+            pState.correctCount = correct;
+            pState.solvedCellsCount = solved;
+
+            if (correct === 81 && isSudokuComplete(pState.board, state.solutionBoard)) {
+              pState.isSolved = true;
+              pState.isFinished = true;
+              pState.completionTimeMs = Date.now() - state.roundStartTime;
+            }
+
+            // After 3 mistakes, sudoku game ends for this player
+            if (pState.mistakes >= 3) {
+              pState.isFinished = true;
+              pState.failedDueToMistakes = true;
+              pState.completionTimeMs = Date.now() - state.roundStartTime;
+
+              const pName = party.players[playerId]?.name || 'Player';
+              party.chatMessages.push({
+                id: `msg_sudoku_err_${Date.now()}_${Math.random()}`,
+                playerId: 'system',
+                playerName: 'System',
+                playerAvatar: '❌',
+                playerColor: '#F43F5E',
+                text: `${pName} reached 3 mistakes! Game Over for ${pName}.`,
+                timestamp: Date.now(),
+                isSystem: true
+              });
+            }
+
+            const activePlayers = Object.keys(party.players).filter(id => party.players[id].isOnline);
+            const checkIds = activePlayers.length > 0 ? activePlayers : Object.keys(party.players);
+            const allFinished = checkIds.every(id => {
+              const ps = state.players[id];
+              return ps ? ps.isFinished : true;
+            });
+
+            if (allFinished) {
+              this.evaluateSudoku(party, state);
+            }
+
+            return true;
+          }
+          return false;
+        }
+
+        if (action === 'sudoku_erase') {
+          const row = Number(data.row);
+          const col = Number(data.col);
+          if (isNaN(row) || isNaN(col) || row < 0 || row > 8 || col < 0 || col > 8) return false;
+          if (pState.initialClues[row][col]) return false;
+
+          pState.board[row][col] = 0;
+          pState.notes[row][col] = [];
+
+          let correct = 0;
+          let solved = 0;
+          for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+              if (pState.board[r][c] === state.solutionBoard[r][c]) {
+                correct++;
+                if (!pState.initialClues[r][c]) solved++;
+              }
+            }
+          }
+          pState.correctCount = correct;
+          pState.solvedCellsCount = solved;
+          return true;
+        }
+
+        if (action === 'sudoku_clear_notes') {
+          const row = Number(data.row);
+          const col = Number(data.col);
+          if (row >= 0 && row < 9 && col >= 0 && col < 9) {
+            pState.notes[row][col] = [];
+            return true;
+          }
+          return false;
+        }
+
+        if (action === 'sudoku_restart') {
+          pState.board = state.initialBoard.map(row => [...row]);
+          pState.notes = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => [] as number[]));
+          let correct = 0;
+          for (let r = 0; r < 9; r++) {
+            for (let c = 0; c < 9; c++) {
+              if (pState.board[r][c] !== 0) correct++;
+            }
+          }
+          pState.correctCount = correct;
+          pState.solvedCellsCount = 0;
+          return true;
+        }
+
+        if (action === 'sudoku_finish') {
+          // Player submits their board at their current position
+          pState.isFinished = true;
+          pState.completionTimeMs = Date.now() - state.roundStartTime;
+
+          const activePlayers = Object.keys(party.players).filter(id => party.players[id].isOnline);
+          const checkIds = activePlayers.length > 0 ? activePlayers : Object.keys(party.players);
+          const allFinished = checkIds.every(id => {
+            const ps = state.players[id];
+            return ps ? ps.isFinished : true;
+          });
+
+          if (allFinished) {
+            this.evaluateSudoku(party, state);
+          }
+          return true;
+        }
+
+        if (action === 'sudoku_end_game') {
+          // Anyone can finish the game at any position!
+          // Mark all players finished with current elapsed time and evaluate immediately
+          const now = Date.now();
+          Object.values(state.players).forEach(ps => {
+            if (!ps.isFinished) {
+              ps.isFinished = true;
+              ps.completionTimeMs = now - state.roundStartTime;
+            }
+          });
+          this.evaluateSudoku(party, state);
+          return true;
+        }
+
+        break;
+      }
     }
 
     return false;
@@ -793,8 +1034,8 @@ export class GameEngine {
   public static handleTick(party: Party): void {
     if (party.gameStatus !== 'in_game') return;
 
-    // Wordle is untimed - never decrement or force timeout
-    if (party.currentGame === 'wordle') return;
+    // Wordle is untimed - and untimed Sudoku never decrements or forces timeout
+    if (party.currentGame === 'wordle' || (party.currentGame === 'sudoku' && party.roundTimeRemaining === 0)) return;
 
     if (party.roundTimeRemaining > 0) {
       party.roundTimeRemaining--;
@@ -812,6 +1053,11 @@ export class GameEngine {
     if (!party.currentGame) return;
 
     switch (party.currentGame) {
+      case 'sudoku': {
+        this.evaluateSudoku(party, party.gameState as SudokuRoundData);
+        break;
+      }
+
       case 'word_battle': {
         this.evaluateWordBattle(party, party.gameState as WordBattleRoundData);
         break;
@@ -1027,6 +1273,150 @@ export class GameEngine {
         guessesUsed: attempts,
         isSolved: pState.isSolved,
         rank: idx + 1,
+        reason
+      };
+    });
+
+    state.roundScores = roundScores;
+  }
+
+  private static evaluateSudoku(party: Party, state: SudokuRoundData): void {
+    state.phase = 'reveal';
+    party.gameStatus = 'round_reveal';
+
+    // Difficulty multipliers for cell points and completion bonus
+    const configMap: Record<SudokuDifficulty, { perCell: number; completionBonus: number }> = {
+      easy: { perCell: 15, completionBonus: 250 },
+      moderate: { perCell: 20, completionBonus: 400 },
+      normal: { perCell: 20, completionBonus: 400 },
+      hard: { perCell: 25, completionBonus: 550 },
+      extreme: { perCell: 30, completionBonus: 700 },
+      expert: { perCell: 30, completionBonus: 700 }
+    };
+    const config = configMap[state.difficulty] || { perCell: 20, completionBonus: 400 };
+    const playerEntries = Object.entries(state.players);
+
+    // Compute detailed breakdown for each player
+    const playerBreakdowns: Record<string, {
+      cellPoints: number;
+      completionBonus: number;
+      speedBonus: number;
+      mistakePenalty: number;
+      totalPoints: number;
+    }> = {};
+
+    playerEntries.forEach(([pid, pState]) => {
+      // 1. Accuracy Marks: Points awarded for each cell solved correctly by the player
+      const cellPoints = pState.solvedCellsCount * config.perCell;
+
+      // 2. Completion & Mastery Bonus
+      let completionBonus = 0;
+      if (pState.isSolved) {
+        completionBonus = config.completionBonus;
+        if (pState.mistakes === 0) {
+          completionBonus += 100; // Flawless solve
+        }
+      }
+
+      // 3. Speed Bonus
+      let speedBonus = 0;
+      if (pState.completionTimeMs && (pState.isSolved || pState.solvedCellsCount > (pState.totalCellsToSolve * 0.7))) {
+        const seconds = Math.floor(pState.completionTimeMs / 1000);
+        speedBonus = Math.max(0, Math.floor(180 - (seconds / 3)));
+      }
+
+      // 4. Mistake Penalty: -15 pts per mistake
+      const mistakePenalty = pState.mistakes * 15;
+
+      const totalPoints = Math.max(0, cellPoints + completionBonus + speedBonus - mistakePenalty);
+      pState.score = totalPoints;
+
+      playerBreakdowns[pid] = {
+        cellPoints,
+        completionBonus,
+        speedBonus,
+        mistakePenalty,
+        totalPoints
+      };
+    });
+
+    // Rank players: isSolved first, then score, then speed, then fewer mistakes
+    const ranked = [...playerEntries].sort((a, b) => {
+      if (a[1].isSolved !== b[1].isSolved) return a[1].isSolved ? -1 : 1;
+      if (b[1].score !== a[1].score) return b[1].score - a[1].score;
+      if (a[1].completionTimeMs && b[1].completionTimeMs) {
+        return a[1].completionTimeMs - b[1].completionTimeMs;
+      }
+      return a[1].mistakes - b[1].mistakes;
+    });
+
+    // Podium bonuses for multiplayer races (2+ players)
+    if (playerEntries.length >= 2) {
+      const podium = [150, 75, 35];
+      ranked.forEach(([pid, pState], idx) => {
+        if (podium[idx] && (pState.isSolved || pState.solvedCellsCount > 0)) {
+          pState.score += podium[idx];
+          if (playerBreakdowns[pid]) {
+            playerBreakdowns[pid].totalPoints += podium[idx];
+          }
+        }
+      });
+    }
+
+    const roundScores: Record<string, {
+      points: number;
+      completionTimeMs?: number;
+      mistakes: number;
+      isSolved: boolean;
+      failedDueToMistakes?: boolean;
+      rank: number;
+      solvedCellsCount: number;
+      totalCellsToSolve: number;
+      cellPoints: number;
+      completionBonus: number;
+      speedBonus: number;
+      mistakePenalty: number;
+      reason?: string;
+    }> = {};
+
+    ranked.forEach(([pid, pState], idx) => {
+      if (party.players[pid]) {
+        party.players[pid].gameScore += pState.score;
+        party.players[pid].totalScore += pState.score;
+      }
+
+      const bd = playerBreakdowns[pid] || {
+        cellPoints: 0,
+        completionBonus: 0,
+        speedBonus: 0,
+        mistakePenalty: 0,
+        totalPoints: pState.score
+      };
+
+      let reason = '';
+      if (pState.isSolved) {
+        const timeStr = pState.completionTimeMs ? `${Math.floor(pState.completionTimeMs / 1000)}s` : '';
+        reason = `Solved perfectly${timeStr ? ' in ' + timeStr : ''}! (${pState.mistakes} mistakes)`;
+      } else if (pState.failedDueToMistakes || pState.mistakes >= 3) {
+        reason = `Game Over: 3 mistakes reached (${pState.solvedCellsCount}/${pState.totalCellsToSolve} cells solved)`;
+      } else {
+        const percent = pState.totalCellsToSolve > 0 ? Math.round((pState.solvedCellsCount / pState.totalCellsToSolve) * 100) : 0;
+        reason = `Finished at position: ${pState.solvedCellsCount}/${pState.totalCellsToSolve} cells (${percent}%)`;
+      }
+
+      roundScores[pid] = {
+        points: pState.score,
+        completionTimeMs: pState.completionTimeMs,
+        mistakes: pState.mistakes,
+        isSolved: pState.isSolved,
+        failedDueToMistakes: pState.failedDueToMistakes || pState.mistakes >= 3,
+        rank: idx + 1,
+        solvedCellsCount: pState.solvedCellsCount,
+        totalCellsToSolve: pState.totalCellsToSolve,
+        cellPoints: bd.cellPoints,
+        completionBonus: bd.completionBonus,
+        speedBonus: bd.speedBonus,
+        mistakePenalty: bd.mistakePenalty,
         reason
       };
     });
@@ -1465,6 +1855,85 @@ export class GameEngine {
               playerColor: party.players[pid]?.color || '#8B5CF6',
               guesses: ps.guesses,
               isSolved: ps.isSolved,
+              score: ps.score
+            };
+          });
+
+          sanitizedGameState.allFinalBoards = allFinalBoards;
+        }
+      } else if (party.currentGame === 'sudoku') {
+        const sState = party.gameState as SudokuRoundData;
+        const myState: SudokuPlayerState = sState.players[playerId] || {
+          playerId,
+          board: sState.initialBoard ? sState.initialBoard.map(row => [...row]) : [],
+          notes: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => [] as number[])),
+          initialClues: sState.initialBoard ? sState.initialBoard.map(row => row.map(v => v !== 0)) : [],
+          mistakes: 0,
+          correctCount: 0,
+          totalCellsToSolve: 81,
+          solvedCellsCount: 0,
+          isSolved: false,
+          isFinished: false,
+          score: 0
+        };
+
+        if (party.gameStatus === 'in_game' && sState.phase === 'playing') {
+          // Do not leak solution board during active gameplay
+          sanitizedGameState.solutionBoard = [];
+          sanitizedGameState.myState = myState;
+
+          const opponentsProgress: SudokuOpponentProgress[] = Object.entries(sState.players)
+            .filter(([pid]) => pid !== playerId)
+            .map(([pid, ps]) => {
+              const totalToSolve = ps.totalCellsToSolve || 1;
+              const solvedPercent = Math.min(100, Math.round((ps.solvedCellsCount / totalToSolve) * 100));
+              return {
+                playerId: pid,
+                playerName: party.players[pid]?.name || 'Player',
+                playerAvatar: party.players[pid]?.avatar || '👤',
+                playerColor: party.players[pid]?.color || '#0EA5E9',
+                correctCount: ps.correctCount,
+                totalCells: 81,
+                solvedPercent,
+                mistakes: ps.mistakes,
+                isSolved: ps.isSolved,
+                isFinished: ps.isFinished,
+                failedDueToMistakes: ps.failedDueToMistakes || ps.mistakes >= 3,
+                completionTimeMs: ps.completionTimeMs
+              };
+            });
+
+          sanitizedGameState.opponentsProgress = opponentsProgress;
+          sanitizedGameState.players = {
+            [playerId]: myState
+          };
+        } else {
+          // Reveal phase: reveal solution and all players' final summary
+          sanitizedGameState.revealedSolution = sState.solutionBoard;
+          sanitizedGameState.myState = myState;
+
+          const allFinalBoards: Record<string, {
+            playerName: string;
+            playerAvatar: string;
+            playerColor: string;
+            board: number[][];
+            isSolved: boolean;
+            mistakes: number;
+            failedDueToMistakes?: boolean;
+            solvedCellsCount?: number;
+            score: number;
+          }> = {};
+
+          Object.entries(sState.players).forEach(([pid, ps]) => {
+            allFinalBoards[pid] = {
+              playerName: party.players[pid]?.name || 'Player',
+              playerAvatar: party.players[pid]?.avatar || '👤',
+              playerColor: party.players[pid]?.color || '#0EA5E9',
+              board: ps.board,
+              isSolved: ps.isSolved,
+              mistakes: ps.mistakes,
+              failedDueToMistakes: ps.failedDueToMistakes || ps.mistakes >= 3,
+              solvedCellsCount: ps.solvedCellsCount,
               score: ps.score
             };
           });

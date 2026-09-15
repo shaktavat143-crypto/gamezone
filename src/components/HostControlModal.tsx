@@ -43,9 +43,15 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
   };
 
   const handleUpdateTimeLimit = (timeLimit: number) => {
-    const valid = Math.max(5, Math.min(600, timeLimit));
+    const minVal = currentGame === 'sudoku' ? 0 : 5;
+    const valid = Math.max(minVal, Math.min(3600, timeLimit));
     setCustomTimeInput(String(valid));
     socketService.updateGameSettings({ timeLimit: valid });
+    soundService.playClick();
+  };
+
+  const handleUpdateDifficulty = (difficulty: 'easy' | 'moderate' | 'hard' | 'extreme') => {
+    socketService.updateGameSettings({ difficulty });
     soundService.playClick();
   };
 
@@ -68,18 +74,14 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
   };
 
   const handleReturnLobby = () => {
-    if (confirm('Return everyone to the lobby? The active game will be stopped.')) {
-      socketService.returnToLobby();
-      soundService.playClick();
-      onClose();
-    }
+    socketService.returnToLobby();
+    soundService.playClick();
+    onClose();
   };
 
-  const handleKick = (playerId: string, name: string) => {
-    if (confirm(`Kick ${name} from the party?`)) {
-      socketService.kickPlayer(playerId);
-      soundService.playClick();
-    }
+  const handleKick = (playerId: string, _name: string) => {
+    socketService.kickPlayer(playerId);
+    soundService.playClick();
   };
 
   return (
@@ -188,13 +190,127 @@ export const HostControlModal: React.FC<HostControlModalProps> = ({
               </div>
             </div>
 
-            {/* Custom Time Limit / Untimed Wordle */}
+            {/* Custom Time Limit / Untimed Wordle / Sudoku Controls */}
             {currentGame === 'wordle' ? (
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 flex items-center gap-2.5">
                 <span className="text-xl">🟩</span>
                 <div>
                   <div className="text-xs font-bold text-emerald-300">Wordle is Untimed</div>
                   <div className="text-[11px] text-zinc-400">Wordle has no countdown timer limit.</div>
+                </div>
+              </div>
+            ) : currentGame === 'sudoku' ? (
+              <div className="space-y-4">
+                {/* Sudoku Timer Mode */}
+                <div>
+                  <div className="flex justify-between text-xs mb-2">
+                    <span className="text-zinc-400">Timer Mode:</span>
+                    <span className="font-bold text-sky-400 font-mono">
+                      {gameSettings.timeLimit === 0
+                        ? 'Untimed (No Rush)'
+                        : `${Math.floor(gameSettings.timeLimit / 60)} Mins (${gameSettings.timeLimit}s)`}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-2.5">
+                    {[
+                      { sec: 0, label: 'Untimed' },
+                      { sec: 300, label: '5 Mins' },
+                      { sec: 600, label: '10 Mins' },
+                      { sec: 900, label: '15 Mins' },
+                      { sec: -1, label: 'Custom' }
+                    ].map((opt) => {
+                      const isSelected = opt.sec === -1
+                        ? ![0, 300, 600, 900].includes(gameSettings.timeLimit)
+                        : gameSettings.timeLimit === opt.sec;
+
+                      return (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => {
+                            if (opt.sec === -1) {
+                              handleUpdateTimeLimit(480); // 8 mins custom default
+                            } else {
+                              handleUpdateTimeLimit(opt.sec);
+                            }
+                          }}
+                          className={`h-10 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center ${
+                            isSelected
+                              ? 'bg-sky-600 text-white shadow-md ring-1 ring-sky-400'
+                              : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom Minutes Input if non-preset time */}
+                  {![0, 300, 600, 900].includes(gameSettings.timeLimit) && (
+                    <div className="p-3 rounded-xl bg-zinc-900/80 border border-sky-500/30 space-y-2">
+                      <div className="flex justify-between text-[11px] text-zinc-400">
+                        <span>Custom Duration (Minutes):</span>
+                        <span className="text-sky-400 font-bold font-mono">
+                          {Math.max(1, Math.round(gameSettings.timeLimit / 60))} Mins ({gameSettings.timeLimit}s)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateTimeLimit(Math.max(60, gameSettings.timeLimit - 60))}
+                          className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition border border-zinc-700"
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={120}
+                          value={Math.max(1, Math.round(gameSettings.timeLimit / 60))}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (!isNaN(val) && val >= 1) {
+                              handleUpdateTimeLimit(val * 60);
+                            }
+                          }}
+                          className="flex-1 h-9 rounded-lg bg-zinc-950 border border-zinc-700 text-center text-sm font-bold text-white font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateTimeLimit(Math.min(7200, gameSettings.timeLimit + 60))}
+                          className="h-9 w-9 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center transition border border-zinc-700"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sudoku Difficulty */}
+                <div>
+                  <div className="flex justify-between text-xs mb-2">
+                    <span className="text-zinc-400">Difficulty:</span>
+                    <span className="font-bold text-sky-400 capitalize">{gameSettings.difficulty}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(['easy', 'moderate', 'hard', 'extreme'] as const).map((diff) => (
+                      <button
+                        key={diff}
+                        type="button"
+                        onClick={() => handleUpdateDifficulty(diff)}
+                        className={`h-10 rounded-xl px-2 text-center text-xs font-bold transition cursor-pointer flex items-center justify-center capitalize ${
+                          gameSettings.difficulty === diff
+                            ? 'bg-sky-600 text-white shadow-md ring-1 ring-sky-400'
+                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                        }`}
+                      >
+                        {diff}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (

@@ -5,7 +5,8 @@ export type GameType =
   | 'memory_battle'
   | 'solah_chits'
   | 'who_said_it'
-  | 'wordle';
+  | 'wordle'
+  | 'sudoku';
 
 export type PartyStatus = 'lobby' | 'in_game' | 'round_reveal' | 'game_results';
 
@@ -52,7 +53,7 @@ export interface GameMetadata {
 export interface GameSettings {
   rounds: number;
   timeLimit: number; // in seconds
-  difficulty: 'easy' | 'normal' | 'hard';
+  difficulty: 'easy' | 'normal' | 'moderate' | 'hard' | 'expert' | 'extreme';
   categoryFilter?: string;
   gameSpecific?: Record<string, any>;
   customParam?: string | number | boolean;
@@ -257,6 +258,80 @@ export interface WordleRoundData {
   }>;
 }
 
+// 8. SUDOKU
+export type SudokuDifficulty = 'easy' | 'normal' | 'moderate' | 'hard' | 'expert' | 'extreme';
+
+export interface SudokuPlayerState {
+  playerId: string;
+  board: number[][]; // 9x9 matrix of user grid
+  notes: number[][][]; // 9x9 matrix of array of candidate numbers [1..9]
+  initialClues: boolean[][]; // 9x9 boolean matrix: true if given clue (immutable)
+  mistakes: number;
+  correctCount: number;
+  totalCellsToSolve: number;
+  solvedCellsCount: number;
+  isSolved: boolean;
+  isFinished: boolean;
+  failedDueToMistakes?: boolean;
+  completionTimeMs?: number;
+  score: number;
+}
+
+export interface SudokuOpponentProgress {
+  playerId: string;
+  playerName: string;
+  playerAvatar: string;
+  playerColor: string;
+  correctCount: number;
+  totalCells: number; // 81
+  solvedPercent: number; // 0 - 100
+  mistakes: number;
+  isSolved: boolean;
+  isFinished: boolean;
+  failedDueToMistakes?: boolean;
+  completionTimeMs?: number;
+}
+
+export interface SudokuRoundData {
+  difficulty: SudokuDifficulty;
+  durationSeconds: number; // 0 = untimed
+  roundStartTime: number;
+  initialBoard: number[][]; // 9x9 initial clues (0 = empty)
+  solutionBoard: number[][]; // SERVER-ONLY during game
+  players: Record<string, SudokuPlayerState>;
+  phase: 'playing' | 'reveal';
+  roundScores?: Record<string, {
+    points: number;
+    completionTimeMs?: number;
+    mistakes: number;
+    isSolved: boolean;
+    failedDueToMistakes?: boolean;
+    rank: number;
+    solvedCellsCount: number;
+    totalCellsToSolve: number;
+    cellPoints: number;
+    completionBonus: number;
+    speedBonus: number;
+    mistakePenalty: number;
+    reason?: string;
+  }>;
+  // Sanitized properties sent to individual player
+  myState?: SudokuPlayerState;
+  opponentsProgress?: SudokuOpponentProgress[];
+  revealedSolution?: number[][];
+  allFinalBoards?: Record<string, {
+    playerName: string;
+    playerAvatar: string;
+    playerColor: string;
+    board: number[][];
+    isSolved: boolean;
+    mistakes: number;
+    failedDueToMistakes?: boolean;
+    solvedCellsCount?: number;
+    score: number;
+  }>;
+}
+
 export type AnyGameRoundData =
   | WordBattleRoundData
   | SecretBattleRoundData
@@ -264,7 +339,8 @@ export type AnyGameRoundData =
   | MemoryBattleRoundData
   | SolahChitsRoundData
   | WhoSaidItRoundData
-  | WordleRoundData;
+  | WordleRoundData
+  | SudokuRoundData;
 
 export interface GameResultItem {
   playerId: string;

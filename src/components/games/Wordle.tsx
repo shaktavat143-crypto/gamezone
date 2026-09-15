@@ -56,6 +56,13 @@ export const Wordle: React.FC<WordleProps> = ({ party }) => {
       return;
     }
 
+    // In Wordle, same word cannot be written/guessed twice
+    const alreadyGuessed = guesses.some(g => g.word.toUpperCase() === trimmed);
+    if (alreadyGuessed) {
+      triggerError('Word already entered');
+      return;
+    }
+
     // Client-side dictionary pre-validation
     if (!isValidWordleWord(trimmed)) {
       triggerError('Not in word list');
@@ -66,7 +73,7 @@ export const Wordle: React.FC<WordleProps> = ({ party }) => {
     socketService.sendGameAction('submit_guess', { guess: trimmed });
     soundService.playClick();
     setCurrentInput('');
-  }, [currentInput, isFinished, isReveal, triggerError]);
+  }, [currentInput, isFinished, isReveal, guesses, triggerError]);
 
   // Handle typing a letter
   const handleAddLetter = useCallback((letter: string) => {
@@ -274,6 +281,14 @@ export const Wordle: React.FC<WordleProps> = ({ party }) => {
               })}
             </div>
           </div>
+
+          {/* Warning when current 5-letter input has already been used */}
+          {!isFinished && !isReveal && currentInput.length === 5 && guesses.some(g => g.word.toUpperCase() === currentInput.toUpperCase()) && (
+            <div className="flex items-center gap-2 rounded-xl bg-amber-500/20 border border-amber-500/40 px-3.5 py-2 text-xs font-bold text-amber-300 animate-pulse">
+              <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
+              <span>You already entered "{currentInput.toUpperCase()}". The same word cannot be used twice!</span>
+            </div>
+          )}
 
           {/* VIRTUAL KEYBOARD */}
           {!isReveal && (

@@ -1,6 +1,8 @@
 {
-  "name": "GAME ZONE",
-  "description": "Multiplayer browser gaming platform for groups of friends with real-time party lobbies, persistent chat, reconnect handling, overall scoreboards, and 7 multiplayer games including Wordle.",
+  "name": "Remix GAME ZONE - 3",
+  "description": "Multiplayer browser gaming platform for groups of friends with real-time party lobbies, persistent chat, reconnect handling, overall scoreboards, and 6 multiplayer games.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

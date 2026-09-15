@@ -16,6 +16,7 @@ import {
 import { ClientPartyView, ConnectionStatus } from '../types.js';
 import { soundService } from '../services/sound.js';
 import { socketService } from '../services/socket.js';
+import { ConfirmModal } from './ConfirmModal.js';
 
 interface NavbarProps {
   party: ClientPartyView | null;
@@ -41,6 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isMuted, setIsMuted] = useState(soundService.getIsMuted());
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const handleCopyCode = () => {
     if (!party) return;
@@ -65,14 +67,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (!muted) soundService.playClick();
   };
 
-  const handleLeave = () => {
-    if (confirm('Are you sure you want to leave this party?')) {
-      if (onLeaveParty) {
-        onLeaveParty();
-      } else {
-        socketService.leaveParty();
-        window.location.href = '/';
-      }
+  const handleLeaveClick = () => {
+    soundService.playClick();
+    setShowLeaveModal(true);
+  };
+
+  const handleConfirmLeave = () => {
+    soundService.playClick();
+    setShowLeaveModal(false);
+    if (onLeaveParty) {
+      onLeaveParty();
+    } else {
+      socketService.leaveParty();
     }
   };
 
@@ -237,7 +243,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Leave Party Button */}
               <button
                 id="leave-party-btn"
-                onClick={handleLeave}
+                onClick={handleLeaveClick}
                 className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-rose-400 hover:border-rose-900/50 hover:bg-rose-950/20 transition cursor-pointer"
                 title="Leave Party"
                 aria-label="Leave Party"
@@ -308,7 +314,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {/* Leave Party Button */}
               <button
                 id="leave-party-btn-mobile"
-                onClick={handleLeave}
+                onClick={handleLeaveClick}
                 className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg sm:rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-rose-400 hover:border-rose-900/50 hover:bg-rose-950/20 transition cursor-pointer shrink-0"
                 title="Leave Party"
                 aria-label="Leave Party"
@@ -420,6 +426,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       )}
+
+      {/* In-App Leave Party Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLeaveModal}
+        title="Leave Party?"
+        description="Are you sure you want to leave this party? You will be disconnected and returned to the main screen."
+        confirmText="Leave Party"
+        cancelText="Stay in Party"
+        variant="danger"
+        icon={<LogOut className="h-6 w-6" />}
+        onConfirm={handleConfirmLeave}
+        onClose={() => setShowLeaveModal(false)}
+      />
     </header>
   );
 };
